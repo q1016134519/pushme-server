@@ -47,3 +47,40 @@ jobs:
             ghcr.io/${{ steps.meta.outputs.owner }}/pushme-server:${{ steps.meta.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # 摘掉历史遗留的 latest（3.4.3 之前 workflow 会同时推 latest）。
+      #
+      # GHCR 不支持「只摘一个 tag」—— registry v2 的 DELETE 对 GHCR 返回 405，
+      # REST 只能删整个 package version，而一个 version 可能同时挂着
+      # ["latest", "3.4.3"]，删它两个 tag 一起消失。这是预期的：旧版本退役，
+      # 仓库里只留当前这一版。
+      #
+      # 删 version 要 delete:packages scope，个人 PAT 一般没有；
+      # GITHUB_TOKEN 对同仓库的 package 有权限。失败不阻断构建。
+      - name: 清理残留的 latest tag
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ steps.meta.outputs.owner }}
+          KEEP: ${{ steps.meta.outputs.version }}
+        run: |
+          ids=$(gh api "/users/$OWNER/packages/container/pushme-server/versions" \
+                  --jq '.[] | select(.metadata.container.tags | index("latest")) | .id' 2>/dev/null || true)
+          if [ -z "$ids" ]; then
+            echo "没有 latest tag，跳过"
+            exit 0
+          fi
+          for id in $ids; do
+            tags=$(gh api "/users/$OWNER/packages/container/pushme-server/versions/$id" \
+                     --jq '.metadata.container.tags | join(",")' 2>/dev/null || echo "?")
+            echo "version $id 挂着 tags=[$tags]"
+            case ",$tags," in
+              *",$KEEP,"*)
+                echo "  含当前版本 $KEEP，跳过（不能只摘 latest）"
+                ;;
+              *)
+                gh api -X DELETE "/users/$OWNER/packages/container/pushme-server/versions/$id" \
+                  && echo "  已删除"
+                ;;
+            esac
+          done
