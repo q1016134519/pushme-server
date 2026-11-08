@@ -4,7 +4,7 @@
 <div class="page-hd">
     <div>
         <h1>设置</h1>
-        <div class="sub">服务、消息台账、推送 key 与日志</div>
+        <div class="sub">服务、消息、推送 key 与日志</div>
     </div>
 </div>
 
@@ -78,7 +78,7 @@
             <div class="stat"><div class="k">已丢弃</div><div class="v" data-storage="dropped">-</div></div>
         </div>
         <div class="row tight" style="margin-bottom: 4px;">
-            <a class="btn" href="{{url('message/index')}}">打开消息台账</a>
+            <a class="btn" href="{{url('message/index')}}">打开消息</a>
             <button class="btn" type="button" id="clean-delivered">清理已送达记录</button>
             <button class="btn btn-danger" type="button" id="clean-all">清空全部消息</button>
             <button class="btn btn-ghost" type="button" id="refresh-storage">刷新</button>
@@ -352,7 +352,7 @@
     });
 
     $('#clean-delivered').addEventListener('click', async function () {
-        if (!(await confirmBox('清理所有已送达的历史记录？台账将不再显示这些消息。'))) return;
+        if (!(await confirmBox('清理所有已送达的历史记录？清理后不再显示这些消息。'))) return;
         const res = await api('{{url("message/clear")}}', {status: 2});
         toast(res.msg || '已清理', res.state ? '' : 'err');
         loadStorage();

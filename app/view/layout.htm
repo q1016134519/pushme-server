@@ -42,7 +42,7 @@
             {{else if is_login}}
             <a class="nav-item {{cur_nav == 'message' ? 'is-active' : ''}}" href="{{url('message/index')}}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.8 7.2 8.2 6 8.2-6"/></svg>
-                <span>消息台账</span>
+                <span>消息</span>
             </a>
             <a class="nav-item {{cur_nav == 'setting' ? 'is-active' : ''}}" href="{{url('setting/index')}}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-2.9-1.2l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15H4.5a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.2-2.9l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 12 4.6V4.5a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0 1.2 2.9h.1a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.53 1Z"/></svg>
@@ -76,7 +76,7 @@
                 {{else if cur_nav == 'test'}}
                 <b>在线测试</b><span>发一条真实推送</span>
                 {{else if cur_nav == 'message'}}
-                <b>消息台账</b><span>未送达与已送达记录</span>
+                <b>消息</b><span>未送达与已送达记录</span>
                 {{else if cur_nav == 'setting'}}
                 <b>设置</b><span>服务、存储与凭证</span>
                 {{else if cur_nav == 'login'}}

@@ -1,2 +1,32 @@
+# 统一 LF 入库：这个项目跑在 Linux 容器里，blob 里带 CRLF 会让
+# Dockerfile 的 `sh` 脚本、docker/Run.sh 直接执行失败（`\r: not found`）。
+# 之前走 Git Data API 推送时把 Windows 工作区的 CRLF 原样写进了 blob，
+# 导致同一份文件在 git 里显示整文件重写，这里一次性钉死。
+* text=auto eol=lf
+
+# 二进制：不转换、不 diff
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf  binary
+*.otf  binary
+*.zip  binary
+*.gz   binary
+*.tar  binary
+*.db   binary
+
+# Windows 上要保留 CRLF 的
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+*.ps1  text eol=crlf
+
+# 必须 LF，否则容器里执行不了
 *.sh   text eol=lf
 *.bash text eol=lf
+Dockerfile       text eol=lf
+docker/Run.sh    text eol=lf

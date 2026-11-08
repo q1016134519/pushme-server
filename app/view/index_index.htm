@@ -22,7 +22,7 @@
     <div class="hero-actions">
         <a class="btn btn-primary" href="{{url('test/index')}}">在线测试</a>
         {{if dashboard_ready}}
-        <a class="btn" href="{{url('message/index')}}">消息台账</a>
+        <a class="btn" href="{{url('message/index')}}">消息</a>
         <a class="btn" href="{{url('setting/index')}}">设置</a>
         {{else}}
         <a class="btn" href="{{url('login/index')}}">登录面板</a>
@@ -83,10 +83,10 @@
             <div class="table-wrap">
                 <table class="table dash-table">
                     <colgroup>
-                        <col style="width: 62px">
+                        <col class="dash-col-id">
                         <col>
-                        <col style="width: 108px">
-                        <col style="width: 128px">
+                        <col class="dash-col-status">
+                        <col class="dash-col-time">
                     </colgroup>
                     <thead>
                     <tr>
@@ -142,7 +142,7 @@
                         <span class="arrow">›</span>
                     </a>
                     <a href="{{url('message/index')}}">
-                        <span>消息台账<br><span class="desc">按 key / 状态 / 关键字检索与重发</span></span>
+                        <span>消息<br><span class="desc">按 key / 状态 / 关键字检索与重发</span></span>
                         <span class="arrow">›</span>
                     </a>
                     <a href="{{url('setting/index')}}">

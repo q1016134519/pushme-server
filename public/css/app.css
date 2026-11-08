@@ -537,6 +537,46 @@ pre, code, .mono { font-family: var(--mono); }
 /* 移动端卡片里给送达时间加前缀，桌面端由表头表达 */
 .c-dlabel { display: none; }
 
+/* ---------- 消息表（桌面） ---------- */
+
+/* 列宽写死在 CSS，不用 colgroup：td 有 16px 左右 padding，
+   在 colgroup 里填 146px 实际只剩 114px，时间戳（19 字符 ≈ 171px）必然溢出压到下一列 */
+/* 这张表信息密度高，左右 padding 从 16 收到 12，把宽度让给内容 */
+.msg-table th, .msg-table td { padding-left: 12px; padding-right: 12px; }
+
+.msg-table .col-time   { width: 104px; }
+.msg-table .col-key    { width: 152px; }
+.msg-table .col-status { width: 112px; }
+.msg-table .col-deliv  { width: 168px; }
+.msg-table .col-act    { width: 186px; }
+
+/* 时间：日期一行 + 时刻一行，19 字符拆成 10 + 8 就不挤了 */
+.msg-table .c-time { line-height: 1.35; }
+.msg-table .t-date,
+.msg-table .t-clock { display: block; }
+.msg-table .t-date { font-size: 12px; color: var(--ink-3); letter-spacing: -.01em; }
+.msg-table .t-clock { font-size: 13px; color: var(--ink-2); font-weight: 500; }
+
+.msg-table .cell-key { overflow: hidden; text-overflow: ellipsis; }
+
+/* 送达时间 + 确认方上下两行：同一件事的两个面，不该各占一列 */
+.msg-table .c-deliv { line-height: 1.4; }
+.msg-table .d-time { display: block; font-size: 12px; color: var(--ink-2); }
+.msg-table .c-by {
+    display: flex;
+    align-items: baseline;
+    gap: 3px;
+    margin-top: 1px;
+    min-width: 0;
+}
+.msg-table .c-by .by-name { max-width: 104px; }
+.msg-table .c-by .by-more { flex: none; margin-left: 0; }
+
+/* 操作列：三个按钮一行，间距压到 4px 刚好放得下 */
+.msg-table td.actions { white-space: nowrap; }
+.msg-table td.actions .btn { padding-left: 9px; padding-right: 9px; }
+.msg-table td.actions .btn + .btn { margin-left: 4px; }
+
 /* ---------- 确认方 ---------- */
 
 .by-name {
@@ -894,6 +934,10 @@ code.inline {
 /* 仪表盘内的窄表格：不设最小宽度，避免横向滚动 */
 .table.dash-table { table-layout: fixed; min-width: 0; }
 .table.dash-table td, .table.dash-table th { padding: 10px 12px; }
+/* 首页四列：td padding 是 12px，col 宽度含 padding，时间列给足 148 才能放下 19 字符 */
+.dash-table .dash-col-id { width: 58px; }
+.dash-table .dash-col-status { width: 104px; }
+.dash-table .dash-col-time { width: 148px; }
 
 .hero-top {
     display: flex;
@@ -1259,9 +1303,8 @@ body.no-chrome .main { max-width: none; }
         grid-template-columns: minmax(0, 1fr) auto;
         grid-template-areas:
             "main    status"
-            "by      delivered"
-            "key     delivered"
-            "time    delivered"
+            "key     deliv"
+            "time    deliv"
             "actions actions";
         gap: 3px 10px;
         padding: 13px 14px;
@@ -1335,29 +1378,32 @@ body.no-chrome .main { max-width: none; }
         font-size: 11.5px;
         color: var(--ink-3);
     }
+    .table tr .c-time .t-date,
+    .table tr .c-time .t-clock { display: inline; font-size: 11.5px; color: inherit; font-weight: 400; }
+    .table tr .c-time .t-clock::before { content: " "; }
 
-    .table tr .c-delivered {
-        grid-area: delivered;
+    /* 送达 + 确认方在移动端合成一列，靠右对齐 */
+    .table tr .c-deliv:empty { display: none; }
+    .table tr .c-deliv {
+        grid-area: deliv;
         align-self: end;
         justify-self: end;
+        min-width: 0;
         font-size: 11.5px;
         color: var(--ink-3);
         text-align: right;
-        white-space: nowrap;
     }
-    .table tr .c-delivered[data-empty],
-    .table tr .c-delivered[data-dupe] { display: none; }
     .table tr .c-dlabel { display: inline; }
-
+    .table tr .c-deliv .d-time { font-size: 11.5px; }
     .table tr .c-by {
-        grid-area: by;
+        display: block;
+        margin-top: 2px;
         min-width: 0;
         font-size: 11.5px;
         color: var(--ink-3);
     }
-    .table tr .c-by[data-empty] { display: none; }
     .table tr .c-blabel { display: inline; }
-    .table tr .c-by .by-name { max-width: 62%; }
+    .table tr .c-deliv .by-name { max-width: 132px; }
 
     .table tr .c-actions {
         grid-area: actions;

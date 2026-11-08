@@ -77,6 +77,7 @@ def main():
         cfg_hex = cfg.split(":", 1)[1]
         manifests.append({
             "Config": cfg_hex + ".json",
+            # ONLY 指定时只留这一个 tag，方便做「包里只有一个名字」的离线包
             "RepoTags": sorted(set(tags) | set(extra)),
             "Layers": ["blobs/" + d.replace(":", "/") for d in layers],
         })

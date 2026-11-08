@@ -552,9 +552,9 @@ test('端到端：面板页面正常渲染，无模板残留、无 layui', async
 
     const ledger = await fetch(`http://127.0.0.1:${srv.panelPort}/message/index`, { headers: { Cookie: cookie } });
     const html = await ledger.text();
-    assert.ok(html.includes('消息台账'), '应渲染台账标题');
+    assert.ok(html.includes('<h1>消息</h1>'), '应渲染消息页标题');
     assert.ok(html.includes('k1'), '应把 push_key 注入页面');
-    assert.ok(html.includes('message/list'), '台账应通过接口拉数据');
+    assert.ok(html.includes('message/list'), '消息页应通过接口拉数据');
     assert.ok(html.includes('data-stat="delivered"'), '应渲染送达统计卡');
 });
 

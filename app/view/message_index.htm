@@ -3,7 +3,7 @@
 {{block 'main'}}
 <div class="page-hd">
     <div>
-        <h1>消息台账</h1>
+        <h1>消息</h1>
         <div class="sub">保留 {{retain_days}} 天 / 每 key 最多 {{max_per_key}} 条 · 送达只认客户端 PUBACK · 确认方标<span class="by-chip is-script" style="margin:0 2px;">脚本</span>的是部署验收脚本，不是手机</div>
     </div>
     <div class="btn-group">
@@ -43,15 +43,14 @@
 
     <div class="card-bd tight">
         <div class="table-wrap">
-            <table class="table is-fixed">
+            <table class="table is-fixed msg-table">
                 <colgroup>
-                    <col style="width: 146px;">
-                    <col style="width: 118px;">
+                    <col class="col-time">
+                    <col class="col-key">
                     <col>
-                    <col style="width: 92px;">
-                    <col style="width: 128px;">
-                    <col style="width: 140px;">
-                    <col style="width: 168px;">
+                    <col class="col-status">
+                    <col class="col-deliv">
+                    <col class="col-act">
                 </colgroup>
                 <thead>
                 <tr>
@@ -59,8 +58,7 @@
                     <th>push_key</th>
                     <th>标题 / 内容</th>
                     <th>状态</th>
-                    <th>送达时间</th>
-                    <th>确认方</th>
+                    <th>送达 / 确认方</th>
                     <th>操作</th>
                 </tr>
                 </thead>
@@ -110,11 +108,20 @@
         return '<span class="badge ' + App.statusClass(row.status) + '">' + App.escapeHtml(row.status_text) + '</span>';
     }
 
+    /** 时间：日期一行、时刻一行，避免 19 字符挤爆定宽列 */
+    function timeCell(text) {
+        if (!text) return '<span class="c-dlabel">时间 </span><span style="opacity:.5">—</span>';
+        const parts = String(text).split(' ');
+        const d = parts[0] || '';
+        const t = parts[1] || '';
+        return '<span class="c-dlabel">时间 </span>' +
+            '<span class="t-date">' + App.escapeHtml(d) + '</span>' +
+            '<span class="t-clock">' + App.escapeHtml(t) + '</span>';
+    }
+
     /** 确认方：谁回的 PUBACK。脚本客户端单独标灰，避免和真机混淆 */
     function confirmerHtml(row) {
-        if (!row.confirmed_by) {
-            return '<span style="opacity:.5">—</span>';
-        }
+        if (!row.confirmed_by) return '';
         const name = App.escapeHtml(row.confirmed_by);
         const more = row.confirmed_count > 1 ? '<span class="by-more">+' + (row.confirmed_count - 1) + '</span>' : '';
         if (row.confirmed_script) {
@@ -126,21 +133,20 @@
     /** 一行 */
     function rowHtml(row) {
         const sub = row.content ? App.escapeHtml(row.content).slice(0, 90) : '<span style="opacity:.6">（无正文）</span>';
-        // 送达时间与创建时间相同（在线即时送达）时，移动端不重复展示
-        const showDelivered = !!row.delivered_text && row.delivered_text !== row.created_text;
+        const confirmer = confirmerHtml(row);
+        // 没送达时间就整段不输出：移动端卡片里留一个空「送达」标签很难看
+        const deliv = row.delivered_text
+            ? '<span class="c-dlabel">送达 </span><span class="d-time">' + App.escapeHtml(row.delivered_text) + '</span>'
+            : '';
         return '<tr data-id="' + row.id + '">' +
-            '<td class="num c-time">' + App.escapeHtml(row.created_text) + '</td>' +
+            '<td class="num c-time">' + timeCell(row.created_text) + '</td>' +
             '<td class="cell-key c-key">' + App.escapeHtml(row.push_key) + '</td>' +
             '<td class="c-main"><div class="cell-title" title="' + App.escapeHtml(row.title || '') + '">' +
             (row.title ? App.escapeHtml(row.title) : '<span style="opacity:.6">（无标题）</span>') +
             '</div><div class="cell-sub">' + sub + '</div></td>' +
             '<td class="c-status">' + badge(row) + '</td>' +
-            '<td class="num c-delivered"' + (row.delivered_text ? (showDelivered ? '' : ' data-dupe="1"') : ' data-empty="1"') + '>' +
-            '<span class="c-dlabel">送达 </span>' +
-            (row.delivered_text ? App.escapeHtml(row.delivered_text) : '<span style="opacity:.5">—</span>') +
-            '</td>' +
-            '<td class="c-by"' + (row.confirmed_by ? '' : ' data-empty="1"') + '>' +
-            '<span class="c-blabel">确认 </span>' + confirmerHtml(row) +
+            '<td class="num c-deliv">' + deliv +
+            (confirmer ? '<span class="c-by"><span class="c-blabel">确认 </span>' + confirmer + '</span>' : '') +
             '</td>' +
             '<td class="actions c-actions">' +
             '<button class="btn btn-sm" data-act="detail" type="button">详情</button> ' +
@@ -179,7 +185,7 @@
 
     /** 查询 */
     async function load() {
-        rowsEl.innerHTML = '<tr><td colspan="7" style="padding:26px 16px;color:#8a97a8;">加载中…</td></tr>';
+        rowsEl.innerHTML = '<tr><td colspan="6" style="padding:26px 16px;color:#8a97a8;">加载中…</td></tr>';
         const res = await App.api('{{url("message/list")}}', state);
         if (!res.state) {
             rowsEl.innerHTML = '';

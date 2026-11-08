@@ -28,7 +28,7 @@ cd /d/AITEST/pushme/repo
 TOKEN=ghp_xxxxxxxx bash scripts/publish-github.sh
 ```
 
-它依次做：校验令牌 → 仓库不存在就建 → 推 `HEAD:master` → 打 `v3.4.3` tag 触发镜像构建 → 打印仓库/构建/镜像地址。
+它依次做：校验令牌 → 仓库不存在就建 → 推 `HEAD:master` → 打 `v3.4.4` tag 触发镜像构建 → 打印仓库/构建/镜像地址。
 
 > **`git push` 被连接重置时**（本机实测就是这个情况：`api.github.com` 通、`github.com:443` 被 reset），
 > 改走 Git Data API，效果等价，只是远端提交的 sha 会和本地不同（内容一致）：
@@ -70,8 +70,8 @@ git push -u mine master
 ### 3. 打 tag 触发构建
 
 ```bash
-git tag -a v3.4.3 -m "v3.4.3 严格 PUBACK 送达 + 确认方列 + 补投去重"
-git push mine v3.4.3
+git tag -a v3.4.4 -m "v3.4.4 消息页重排 + 镜像单 tag + LF 入库"
+git push mine v3.4.4
 ```
 
 ---
@@ -83,29 +83,31 @@ git push mine v3.4.3
 `.github/workflows/docker.yml` 在推 `v*` tag 或手动 `workflow_dispatch` 时构建并推送：
 
 ```
-ghcr.io/q1016134519/pushme-server:3.4.3
-ghcr.io/q1016134519/pushme-server:latest
+ghcr.io/q1016134519/pushme-server:3.4.4
 ```
+
+**只出一个 tag，不打 `latest`。** 理由很实在：生产容器如果挂 `latest`，下次 CI 一构建就悄悄换了版本，
+容器里跑的是哪一版说不清；离线包和 GHCR 也对不上号。要升级就改 tag 名，看得见。
 
 用的是仓库自带的 `GITHUB_TOKEN`，不需要额外配 secret。产物是 `linux/amd64`。
 
 第一次跑完，到 GitHub → 个人头像 → Packages 里能看到这个包。**公开仓库默认包也是公开的**，可直接匿名拉：
 
 ```bash
-docker pull ghcr.io/q1016134519/pushme-server:3.4.3
+docker pull ghcr.io/q1016134519/pushme-server:3.4.4
 ```
 
-实测（2026-11-08，tag `v3.4.3`，匿名拉取成功）：
+实测（2026-11-08，`v3.4.3` 那次构建，匿名拉取成功；`3.4.4` 是同一套 workflow，digest 会变）：
 
 ```
 Digest: sha256:71f2040a69a3a480f8ed255ca0863d9ad6d362fdfe71b40f4abfaf5c58746e01
 Status: Downloaded newer image for ghcr.io/q1016134519/pushme-server:3.4.3
 ```
 
-补齐三个 tag（CI 只打 `3.4.3` 和 `latest`，本地习惯用的短名自己补）：
+本地习惯用的短名自己补（可选，只为少打一截前缀）：
 
 ```bash
-docker tag ghcr.io/q1016134519/pushme-server:3.4.3 pushme-server:3.4.3
+docker tag ghcr.io/q1016134519/pushme-server:3.4.4 pushme-server:3.4.4
 ```
 
 如果是私有仓库，拉之前要登录（PAT 勾 `read:packages`）：
@@ -123,31 +125,39 @@ echo <PAT> | docker login ghcr.io -u q1016134519 --password-stdin
 
 | 项目 | 值 |
 |---|---|
-| 文件（本机） | `D:\AITEST\pushme\deploy\pushme-server-3.4.3-image.tar.gz` |
-| 大小 | 68 MB（解开约 305 MB） |
-| sha256 | `dbfdee74be477be8281c20918e412182bb97d6ede5b103960ebe8c420cfe89a4` |
-| 内含 tag | `pushme-server:3.4.3`、`ghcr.io/q1016134519/pushme-server:3.4.3`、`...:latest` |
+| 文件（本机） | `D:\AITEST\pushme\deploy\pushme-server-3.4.4-image.tar.gz` |
+| 大小 | 67.9 MB（71,188,272 字节，解开约 305 MB） |
+| sha256 | `47d8a5441d96e216f86f14b87e62837d919172c9ce8f08c854fe7e8f4b0d27d2` |
+| 内含 tag | **只有 `pushme-server:3.4.4` 一个** |
 | 平台 | linux/amd64 |
 | 基础镜像 | node:22-alpine3.22 |
-| 与 GHCR 的关系 | 就是 `ghcr.io/q1016134519/pushme-server:3.4.3` 那份镜像原样导出，不是另构建的 |
+| 与 GHCR 的关系 | 同一份源码构建的产物；本地构建时去掉了 `# syntax=` 行（阿里云镜像站对 dockerfile frontend 返回 403） |
+
+> **为什么只打一个 tag**：`docker load` 出来三行 `Loaded image` 会让人以为有三个不同的镜像，
+> 其实 image ID 全等。生产容器挂哪个 tag 就该是哪个版本，多一个 `latest` 只会让「现在跑的是哪版」变模糊。
+> 现在离线包和 GHCR 都只出 `<version>` 这一个。
 
 > containerd image store 的 `docker save` 只出 OCI layout（`index.json` + `blobs/sha256/*`），
 > 老 `docker load` 不认，而且多 tag 保存时 `manifest.json` 的 RepoTags 会错位。
 > 用 `tools/oci2docker.py` 自己拼经典 docker-archive（会递归挑 `linux/amd64` 那一层）：
 >
 > ```bash
-> mkdir -p /tmp/oci && tar -xf oci.tar -C /tmp/oci
-> python3 tools/oci2docker.py /tmp/oci pushme-server-3.4.3.tar \
->   pushme-server:3.4.3 ghcr.io/q1016134519/pushme-server:latest
-> gzip -9 -c pushme-server-3.4.3.tar > pushme-server-3.4.3-image.tar.gz
+> docker save pushme-server:3.4.4 -o /tmp/s344.tar
+> mkdir -p /tmp/oci344 && tar -xf /tmp/s344.tar -C /tmp/oci344
+> python3 tools/oci2docker.py /tmp/oci344 /tmp/pushme-3.4.4.tar pushme-server:3.4.4
+> gzip -9 -c /tmp/pushme-3.4.4.tar > pushme-server-3.4.4-image.tar.gz
 > ```
 
 导入（宝塔终端，或宝塔 Docker 插件的「镜像 → 导入」）：
 
 ```bash
-gzip -t pushme-server-3.4.3-image.tar.gz            # 先验完整性
-docker load -i pushme-server-3.4.3-image.tar.gz
-docker images | grep pushme-server                  # 应看到 3 个 tag
+sha256sum pushme-server-3.4.4-image.tar.gz   # 应为 47d8a544…27d2
+gzip -t pushme-server-3.4.4-image.tar.gz     # 验完整性
+docker load -i pushme-server-3.4.4-image.tar.gz
+# 期望只有一行：Loaded image: pushme-server:3.4.4
+
+docker run --rm pushme-server:3.4.4 \
+  node -p 'require("/pushme-server/package.json").version'   # 应打印 3.4.4
 ```
 
 起服务：
@@ -157,17 +167,17 @@ mkdir -p /www/wwwroot/pushme-server/config
 docker run -d --name pushme-server --restart unless-stopped \
   -p 3010:3010 -p 3100:3100 -e TZ=Asia/Shanghai \
   -v /www/wwwroot/pushme-server/config:/pushme-server/config \
-  pushme-server:3.4.3
+  pushme-server:3.4.4
 ```
 
-也可以把包放到宝塔能访问的目录，用 compose 里的 `image: pushme-server:3.4.3` 直接引用，不再 build。
+也可以把包放到宝塔能访问的目录，用 compose 里的 `image: pushme-server:3.4.4` 直接引用，不再 build。
 
 ### 路线 C：目标机器上现构（最稳，但要求能拉到基础镜像）
 
 ```bash
 cd /www/wwwroot/pushme-server
 rm -f config/data.json            # 别把线上配置烤进镜像
-docker build -f docker/Dockerfile -t pushme-server:3.4.3 .
+docker build -f docker/Dockerfile -t pushme-server:3.4.4 .
 ```
 
 ---
@@ -183,7 +193,7 @@ docker build -f docker/Dockerfile -t pushme-server:3.4.3 .
 验证镜像干净（构建后跑一次）：
 
 ```bash
-docker run --rm pushme-server:3.4.3 sh -c 'ls /pushme-server/config.demo; test ! -f /pushme-server/config.demo/data.json && echo "no secrets"'
+docker run --rm pushme-server:3.4.4 sh -c 'ls /pushme-server/config.demo; test ! -f /pushme-server/config.demo/data.json && echo "no secrets"'
 ```
 
 期望输出：三行 `.js` + `no secrets`。
@@ -194,8 +204,9 @@ docker run --rm pushme-server:3.4.3 sh -c 'ls /pushme-server/config.demo; test !
 
 ```bash
 git status --porcelain                 # 应为空
-git log --oneline -1                   # 342042c feat: v3.4.3 ...
+git log --oneline -1                   # f0f6a8a feat(ui): 消息台账改「消息」…
 git ls-files | grep -E "data\.json|messages\.db" # 必须无输出
+git ls-files --eol | grep -v "i/lf"    # 除 png/bat 外应全为 LF
 npm test                               # 29/29
 ```
 

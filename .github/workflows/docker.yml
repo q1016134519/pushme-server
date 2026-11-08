@@ -2,7 +2,7 @@ name: docker
 
 # 打 tag（v*）或手动触发时构建镜像并推到 GHCR：
 #   ghcr.io/<owner>/pushme-server:<package.json 版本>
-#   ghcr.io/<owner>/pushme-server:latest
+# 只出一个 tag，不打 latest —— 生产容器挂 latest 会在下次构建后悄悄换版本
 on:
   push:
     tags: ['v*']
@@ -41,8 +41,9 @@ jobs:
           context: .
           file: docker/Dockerfile
           push: true
+          # 只打版本 tag，不打 latest：latest 会被下次构建覆盖，
+          # 生产容器挂在 latest 上就不知道自己跑的是哪一版
           tags: |
             ghcr.io/${{ steps.meta.outputs.owner }}/pushme-server:${{ steps.meta.outputs.version }}
-            ghcr.io/${{ steps.meta.outputs.owner }}/pushme-server:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
