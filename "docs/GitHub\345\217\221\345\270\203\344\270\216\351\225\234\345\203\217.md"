@@ -30,6 +30,19 @@ TOKEN=ghp_xxxxxxxx bash scripts/publish-github.sh
 
 它依次做：校验令牌 → 仓库不存在就建 → 推 `HEAD:master` → 打 `v3.4.3` tag 触发镜像构建 → 打印仓库/构建/镜像地址。
 
+> **`git push` 被连接重置时**（本机实测就是这个情况：`api.github.com` 通、`github.com:443` 被 reset），
+> 改走 Git Data API，效果等价，只是远端提交的 sha 会和本地不同（内容一致）：
+>
+> ```bash
+> cd /d/AITEST/pushme/repo
+> TOKEN=ghp_xxxxxxxx python scripts/push-via-api.py q1016134519/pushme-server master
+> ```
+>
+> 它做的是：`git ls-tree -r HEAD` 取真实 blob sha（对象库里是 LF，绕开 Windows CRLF 污染）→
+> 并行 `POST /git/blobs` → `POST /git/trees` → `POST /git/commits`（远端已有分支就挂 parent）→
+> `PATCH /git/refs/heads/master` → 设默认分支 → 打 tag。仓库是空的时候先用 Contents API 塞个 README，
+> 否则 Git Data API 返回 409。
+
 ### 2. 手动加远端并推（脚本已覆盖，留作参考）
 
 本地仓库现在有两个远端：`origin` 指上游 `yafoo/pushme-server`（保留着便于以后同步），
@@ -80,6 +93,19 @@ ghcr.io/q1016134519/pushme-server:latest
 docker pull ghcr.io/q1016134519/pushme-server:3.4.3
 ```
 
+实测（2026-11-08，tag `v3.4.3`，匿名拉取成功）：
+
+```
+Digest: sha256:630e70d7f431ec91be68fe83dcb70467a0eba126157921c395c4e7b8d5ab8680
+Status: Downloaded newer image for ghcr.io/q1016134519/pushme-server:3.4.3
+```
+
+补齐三个 tag（CI 只打 `3.4.3` 和 `latest`，本地习惯用的短名自己补）：
+
+```bash
+docker tag ghcr.io/q1016134519/pushme-server:3.4.3 pushme-server:3.4.3
+```
+
 如果是私有仓库，拉之前要登录（PAT 勾 `read:packages`）：
 
 ```bash
@@ -97,10 +123,22 @@ echo <PAT> | docker login ghcr.io -u q1016134519 --password-stdin
 |---|---|
 | 文件（本机） | `D:\AITEST\pushme\deploy\pushme-server-3.4.3-image.tar.gz` |
 | 大小 | 68 MB（解开约 305 MB） |
-| sha256 | `435b83921cd7321890cc92111be248c4ec4881520de2783c4c21c0fc5a5c2907` |
+| sha256 | `a1760bb94aa4a5265b4c9a7e103abe80d16c1a9ef7d35b5898ad1438b7ad98f1` |
 | 内含 tag | `pushme-server:3.4.3`、`ghcr.io/q1016134519/pushme-server:3.4.3`、`...:latest` |
 | 平台 | linux/amd64 |
 | 基础镜像 | node:22-alpine3.22 |
+| 与 GHCR 的关系 | 就是 `ghcr.io/q1016134519/pushme-server:3.4.3` 那份镜像原样导出，不是另构建的 |
+
+> containerd image store 的 `docker save` 只出 OCI layout（`index.json` + `blobs/sha256/*`），
+> 老 `docker load` 不认，而且多 tag 保存时 `manifest.json` 的 RepoTags 会错位。
+> 用 `tools/oci2docker.py` 自己拼经典 docker-archive（会递归挑 `linux/amd64` 那一层）：
+>
+> ```bash
+> mkdir -p /tmp/oci && tar -xf oci.tar -C /tmp/oci
+> python3 tools/oci2docker.py /tmp/oci pushme-server-3.4.3.tar \
+>   pushme-server:3.4.3 ghcr.io/q1016134519/pushme-server:latest
+> gzip -9 -c pushme-server-3.4.3.tar > pushme-server-3.4.3-image.tar.gz
+> ```
 
 导入（宝塔终端，或宝塔 Docker 插件的「镜像 → 导入」）：
 
