@@ -78,10 +78,13 @@ docker run -dit \
 > |---|---|
 > | 面板地址 | `http://<服务器IP>:3010` |
 > | 账号 / 密码 | `admin` / `admin123` |
-> | push_key | 空（登录后到「设置」里添加，添加前推送会返回 `no_subscriber`） |
+> | push_key | 空（登录后到「设置」里添加） |
 >
 > 挂载目录里已存在 `config/data.json` 时**不会覆盖**，所以升级容器不会冲掉你自己的配置。
 > 登录后请立刻在「设置 → 账户密码」改掉默认密码。
+>
+> 没有 key 时的推送表现（实测）：空 `push_key` → `Push failed, empty push_key!`；
+> 填一个没配置过的 key → `非法push_key!`。
 
 ### 方式三：Docker Compose 部署
 
