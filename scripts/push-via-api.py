@@ -184,17 +184,20 @@ def main():
         if st in (204, 200):
             print("   删掉了多余的 main 分支")
 
-    # 6) tag
-    st, res = call("POST", f"/repos/{owner}/{name}/git/refs",
-                   {"ref": f"refs/tags/{TAG}", "sha": commit["sha"]})
-    if st in (200, 201):
-        print(f"== tag {TAG} -> {commit['sha'][:12]} ==")
-    elif st == 422:
-        st2, _ = call("PATCH", f"/repos/{owner}/{name}/git/refs/tags/{TAG}",
-                      {"sha": commit["sha"], "force": True})
-        print(f"== tag {TAG} 已存在，强制更新：{st2} ==")
+    # 6) tag（SKIP_TAG=1 时只推分支，避免把已发布的 tag 挪到新提交反复触发构建）
+    if os.environ.get("SKIP_TAG"):
+        print(f"== SKIP_TAG=1，不改 tag（{TAG} 保持在已发布的那次提交） ==")
     else:
-        print(f"   ⚠ tag 失败 {st}: {str(res)[:200]}")
+        st, res = call("POST", f"/repos/{owner}/{name}/git/refs",
+                       {"ref": f"refs/tags/{TAG}", "sha": commit["sha"]})
+        if st in (200, 201):
+            print(f"== tag {TAG} -> {commit['sha'][:12]} ==")
+        elif st == 422:
+            st2, _ = call("PATCH", f"/repos/{owner}/{name}/git/refs/tags/{TAG}",
+                          {"sha": commit["sha"], "force": True})
+            print(f"== tag {TAG} 已存在，强制更新：{st2} ==")
+        else:
+            print(f"   ⚠ tag 失败 {st}: {str(res)[:200]}")
 
     print(f"\n仓库 https://github.com/{owner}/{name}\n分支 {BRANCH}  tag {TAG}")
     print(f"镜像 ghcr.io/{owner}/{name}:{TAG}")
