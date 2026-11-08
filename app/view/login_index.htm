@@ -1,0 +1,77 @@
+{{extend './layout.htm'}}
+
+{{block 'main'}}
+<div class="auth">
+    <div class="auth-brand">
+        <span class="brand-mark">P</span>
+        <div>
+            <div class="auth-name">PushMe Server</div>
+            <div class="auth-ver">{{version}}</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-hd">
+            <div>
+                <h2>{{form == 'install' ? '系统安装' : '管理员登录'}}</h2>
+                <div class="sub">{{form == 'install' ? '首次使用，创建管理员账号' : '登录后可管理消息与服务设置'}}</div>
+            </div>
+        </div>
+        <div class="card-bd">
+            {{if form == 'install'}}
+            <div class="notice">安装后请立即在「设置 → PushKey」里配置至少一个 push_key。</div>
+            {{/if}}
+            <form id="login-form" autocomplete="off">
+                {{include './form_user.htm'}}
+                {{if form == 'install'}}
+                {{include './form_password2.htm'}}
+                {{else}}
+                <div class="notice info">飞牛 APP 内置浏览器存在兼容问题，若无法登录请改用手机或电脑自带浏览器。</div>
+                {{/if}}
+                <div class="form-actions">
+                    <button class="btn btn-primary btn-block" type="submit">{{form == 'install' ? '安装' : '登录'}}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="auth-foot">
+        <a href="https://github.com/yafoo/pushme-server" target="_blank" rel="noopener">项目源码</a>
+        <span>·</span>
+        <a href="https://push.i-i.me" target="_blank" rel="noopener">接口文档</a>
+    </div>
+</div>
+{{/block}}
+
+{{block 'js'}}
+<script>
+(function () {
+    const {api, toast, $} = App;
+
+    $('#login-form').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const user = $('#user').value.trim();
+        const password = $('#password').value;
+        const password2El = $('#password2');
+
+        if (!user || !password) return toast('账号密码不能为空', 'err');
+        if (password2El && password !== password2El.value) return toast('两次输入密码不一致', 'err');
+
+        const btn = e.target.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        try {
+            const res = await api('', {user, password});
+            if (!res.state) return toast(res.msg || '操作失败', 'err');
+            toast(res.msg || '成功');
+            setTimeout(function () {
+                location.href = typeof res.data === 'string' && res.data ? '/' + res.data.replace(/^\//, '') : '/';
+            }, 400);
+        } catch (err) {
+            toast('请求失败：' + err.message, 'err');
+        } finally {
+            btn.disabled = false;
+        }
+    });
+})();
+</script>
+{{/block}}

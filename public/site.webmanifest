@@ -1,0 +1,25 @@
+{
+    "name": "PushMe Server",
+    "short_name": "PushMe",
+    "description": "自建消息推送服务端管理面板",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "orientation": "portrait",
+    "background_color": "#f2f5f9",
+    "theme_color": "#0e9f7a",
+    "icons": [
+        {
+            "src": "/favicon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any"
+        },
+        {
+            "src": "/favicon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "maskable"
+        }
+    ]
+}

@@ -1,0 +1,32 @@
+# 依赖
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# 运行时配置与数据（唯一不可再生的部分，绝不入库）
+config/data.json
+config/messages.db
+config/messages.db-wal
+config/messages.db-shm
+config/offline.json
+config/certs/
+config/*.tmp
+data/
+logs/
+*.log
+
+# 本地产物
+deploy/*.tar.gz
+deploy/shots/
+deploy/l.json
+deploy/msg.html
+deploy/*.out
+deploy/*.hdr
+deploy/cookies.txt
+deploy/*.png
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

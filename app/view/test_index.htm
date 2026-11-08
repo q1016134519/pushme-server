@@ -1,0 +1,353 @@
+{{extend './layout.htm'}}
+
+{{block 'topbar'}}
+{{if status_ready}}
+<span class="topbar-pill {{service_status == 'start' ? '' : 'is-off'}}" data-pill>
+    <span data-field="status_short">{{service_status == 'start' ? '运行中' : '已停止'}}</span>
+</span>
+{{/if}}
+{{/block}}
+
+{{block 'main'}}
+<div class="page-hd">
+    <div>
+        <h1>在线测试</h1>
+        <div class="sub">不离开面板发一条真实推送，验证 push_key、在线客户端与送达回执</div>
+    </div>
+</div>
+
+{{if status_ready}}
+<div class="stats">
+    <div class="stat"><div class="k">在线客户端</div><div class="v ok" data-field="client_count">{{client_count}}</div></div>
+    <div class="stat"><div class="k">连接数</div><div class="v" data-field="connection_count">{{connection_count}}</div></div>
+    <div class="stat"><div class="k">待补投队列</div><div class="v warn" data-field="offline_count">{{offline_count}}</div></div>
+    <div class="stat"><div class="k">服务状态</div><div class="v is-text" data-field="status_text">{{service_status == 'start' ? '运行中' : '已停止'}}</div></div>
+</div>
+{{else}}
+<div class="notice info">未登录：只显示发送表单，统计信息需登录面板后查看。</div>
+{{/if}}
+
+<section class="card">
+    <div class="card-hd">
+        <div>
+            <h2>发送测试消息</h2>
+            <div class="sub">无人在线时消息会入库，客户端上线后自动补投；送达只认客户端 PUBACK</div>
+        </div>
+    </div>
+    <div class="card-bd">
+        <form id="test-form" autocomplete="off">
+            <div class="field">
+                <label for="pk">push_key <em>*</em></label>
+                <input class="input" type="password" id="pk" name="push_key" placeholder="请输入 push_key">
+                <label class="check" style="margin-top: 8px;">
+                    <input type="checkbox" id="remember"> 记住 push_key（只存在本机浏览器）
+                </label>
+            </div>
+
+            <div class="field">
+                <label>标题修饰（可选，按官方语法拼接）</label>
+                <div class="row">
+                    <select class="select" id="theme">
+                        <option value="">消息主题</option>
+                        <option value="i">信息 i</option>
+                        <option value="s">成功 s</option>
+                        <option value="w">警告 w</option>
+                        <option value="f">失败 f</option>
+                    </select>
+                    <input class="input" id="user" placeholder="消息分组">
+                    <input class="input" id="face" placeholder="分组头像（emoji 或 URL）">
+                    <input class="input" id="channel" placeholder="消息通道">
+                </div>
+            </div>
+
+            <div class="field">
+                <label for="title">消息标题 <em>*</em></label>
+                <input class="input" id="title" placeholder="请输入消息标题">
+                <div class="hint" id="title-preview" style="display: none;">实际发送：<strong></strong></div>
+            </div>
+
+            <div class="field">
+                <label for="content">消息内容 <em>*</em></label>
+                <textarea class="textarea" id="content" rows="5" placeholder="请输入消息内容"></textarea>
+            </div>
+
+            <div class="field">
+                <label>消息类型</label>
+                <div class="chips" id="type-chips">
+                    <button type="button" class="chip is-on" data-type="text">text</button>
+                    <button type="button" class="chip" data-type="markdown">markdown</button>
+                    <button type="button" class="chip" data-type="html">html</button>
+                    <button type="button" class="chip" data-type="url">url</button>
+                    <button type="button" class="chip" data-type="data">data</button>
+                    <button type="button" class="chip" data-type="markdata">markdata</button>
+                    <button type="button" class="chip" data-type="note">note</button>
+                    <button type="button" class="chip" data-type="svg">svg</button>
+                    <button type="button" class="chip" data-type="chart">chart</button>
+                    <button type="button" class="chip" data-type="echarts">echarts</button>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="field">
+                <label>消息示例</label>
+                <div class="chips" id="sample-chips">
+                    <button type="button" class="chip" data-sample="text">hello world</button>
+                    <button type="button" class="chip" data-sample="markdown">markdown</button>
+                    <button type="button" class="chip" data-sample="html">html</button>
+                    <button type="button" class="chip" data-sample="url">url</button>
+                    <button type="button" class="chip" data-sample="data">data</button>
+                    <button type="button" class="chip" data-sample="markdata">markdata</button>
+                    <button type="button" class="chip" data-sample="note">note</button>
+                    <button type="button" class="chip" data-sample="svg">svg</button>
+                    <button type="button" class="chip" data-sample="echarts">echarts</button>
+                    <button type="button" class="chip" data-sample="user">分组</button>
+                    <button type="button" class="chip" data-sample="emoji">分组 + emoji</button>
+                    <button type="button" class="chip" data-sample="all">主题 + 分组 + 头像 + 通道</button>
+                </div>
+                <div class="chips" style="margin-top: 8px;">
+                    <button type="button" class="chip" data-chart="normal">chart</button>
+                    <button type="button" class="chip" data-chart="bar">bar</button>
+                    <button type="button" class="chip" data-chart="bar2">bar2</button>
+                    <button type="button" class="chip" data-chart="bar3">bar3</button>
+                    <button type="button" class="chip" data-chart="line">line</button>
+                    <button type="button" class="chip" data-chart="pie">pie</button>
+                    <button type="button" class="chip" data-chart="pie2">pie2</button>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary" id="send">发送</button>
+                <button type="reset" class="btn" id="reset">重置</button>
+            </div>
+        </form>
+    </div>
+</section>
+
+<div class="notice info" style="margin-top: 16px;">
+    等价的命令行调用：<code class="inline">curl -sS 'http://本机:{{server_port}}/push_key/title/content?type=text'</code>
+    —— 或 <code class="inline">GET /?push_key=KEY&amp;title=T&amp;content=C&amp;type=text</code>。发送后到
+    <a href="{{url('message/index')}}">消息台账</a> 看这条消息的最终状态。
+</div>
+{{/block}}
+
+{{block 'js'}}
+<script>
+(function () {
+    const {api, toast, fmtDuration, $, $$} = App;
+    const TypeKeys = ['text', 'markdown', 'html', 'url', 'data', 'markdata', 'note', 'svg', 'chart', 'echarts'];
+
+    /** 当前选中的消息类型 */
+    let currentType = 'text';
+
+    const q = {
+        pk: $('#pk'), remember: $('#remember'), theme: $('#theme'),
+        user: $('#user'), face: $('#face'), channel: $('#channel'),
+        title: $('#title'), content: $('#content')
+    };
+
+    /* ---------------- 在线状态 ---------------- */
+    const STATUS_URL = '{{url("server/status")}}';
+
+    function setField(name, value) {
+        const text = value === undefined || value === null || value === '' ? '-' : value;
+        $$('[data-field="' + name + '"]').forEach(function (el) { el.textContent = text; });
+    }
+
+    async function pollStatus() {
+        if (document.hidden) return;
+        let res;
+        try {
+            res = await api(STATUS_URL);
+        } catch (err) {
+            return;
+        }
+        if (!res.state) return;
+        const d = res.data || {};
+        const on = String(d.pushme_status) === 'start';
+        setField('client_count', d.client_count);
+        setField('connection_count', d.connection_count);
+        setField('offline_count', d.offline_count);
+        setField('status_text', on ? '运行中' : '已停止');
+        setField('status_short', on ? '运行中' : '已停止');
+        $$('[data-pill]').forEach(function (pill) { pill.classList.toggle('is-off', !on); });
+    }
+
+    if (document.querySelector('[data-field="client_count"]')) {
+        pollStatus();
+        setInterval(pollStatus, 5000);
+    }
+
+    /* ---------------- 标题拼接 ---------------- */
+    /** 按官方语法拼接标题修饰 */
+    function composeTitle() {
+        const titles = [];
+        const theme = q.theme.value;
+        const user = q.user.value.trim();
+        const face = q.face.value.trim();
+        const channel = q.channel.value.trim();
+        const raw = q.title.value.trim();
+
+        if (theme) titles.push('[' + theme + ']');
+        const group = user && face ? '[#' + user + '!' + face + ']' : (user ? '[#' + user + ']' : '');
+        if (group && group.indexOf('http') === -1) titles.push(group);
+        if (raw) titles.push(raw);
+        if (group && group.indexOf('http') > -1) titles.push(group);
+        if (channel) titles.push('[~' + channel + ']');
+        return titles.join('');
+    }
+
+    function renderPreview() {
+        const value = composeTitle();
+        const box = $('#title-preview');
+        box.style.display = value ? 'block' : 'none';
+        box.querySelector('strong').textContent = value;
+    }
+
+    ['input', 'change'].forEach(function (evt) {
+        [q.theme, q.user, q.face, q.channel, q.title].forEach(function (el) {
+            el.addEventListener(evt, renderPreview);
+        });
+    });
+
+    function setType(type) {
+        currentType = TypeKeys.indexOf(type) > -1 ? type : 'text';
+        $$('#type-chips .chip').forEach(function (chip) {
+            chip.classList.toggle('is-on', chip.dataset.type === currentType);
+        });
+    }
+
+    $$('#type-chips .chip').forEach(function (chip) {
+        chip.addEventListener('click', function () { setType(chip.dataset.type); });
+    });
+
+    // 记住 push_key
+    const cached = localStorage.getItem('pushme_key');
+    if (cached) {
+        q.pk.value = cached;
+        q.remember.checked = true;
+    }
+    q.remember.addEventListener('change', function () {
+        if (q.remember.checked && q.pk.value) localStorage.setItem('pushme_key', q.pk.value);
+        if (!q.remember.checked) localStorage.removeItem('pushme_key');
+    });
+
+    const samples = {
+        text: 'PushMe，一个简单轻量的Android消息通知客户端！',
+        markdown: '## PushMe\n#### 一个简单轻量的Android消息通知客户端！\n官网：https://push.i-i.me/',
+        html: '<div style="border: 10px solid #0e9f7a; text-align: center; font-size: 30px; padding: 20px;">HTML</div>',
+        url: 'https://push.i-i.me?from=type_url',
+        data: '42',
+        markdata: '||IP|UV|PV\n-|-|-|-\n今日|12|34|56\n预计|13|36|60\n昨日|11|30|52',
+        note: '- [x] 完成项目需求文档\n- [x] 设计数据库结构\n- [ ] 开发用户模块\n- [ ] 开发消息推送模块\n- [ ] 编写单元测试\n- [ ] 部署到生产环境',
+        svg: '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" viewBox="0 0 400 200">' +
+            '<defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">' +
+            '<stop offset="0%" stop-color="#FF6B9D"/><stop offset="100%" stop-color="#C2185B"/></linearGradient></defs>' +
+            '<rect width="400" height="200" fill="#fafafa"/>' +
+            '<path d="M200,150 C200,150 120,100 120,65 C120,40 160,32 200,60 C240,32 280,40 280,65 C280,100 200,150 200,150Z" fill="url(#g)"/>' +
+            '</svg>',
+        echarts: '{"series":[{"type":"pie","data":[{"value":40,"name":"A"},{"value":32,"name":"B"},{"value":28,"name":"C"}]}]}'
+    };
+
+    const charts = {
+        normal: '42',
+        bar: '12,34,56',
+        bar2: 'bar::12|A',
+        bar3: 'bar|5::12|A,34|B',
+        line: 'line::12|A',
+        pie: 'pie::12|A',
+        pie2: 'pie|3::12|A,34|B,56|C'
+    };
+
+    $$('#sample-chips .chip').forEach(function (chip) {
+        chip.addEventListener('click', function () {
+            const sample = chip.dataset.sample;
+            const map = {
+                user: {title: 'hello user', content: samples.text, user: 'PushMe'},
+                emoji: {title: 'hello emoji', content: samples.text, user: '我的分组', face: '😄'},
+                all: {
+                    title: 'hello all', content: samples.text, theme: 's', user: '风景',
+                    face: 'https://pics0.baidu.com/feed/8644ebf81a4c510f6d010e1cb533ce22d52aa56e.jpeg',
+                    channel: '重点通知'
+                }
+            };
+            const data = map[sample] || {title: 'hello ' + sample, content: samples[sample] || samples.text};
+            q.title.value = data.title;
+            q.content.value = data.content;
+            q.theme.value = data.theme || q.theme.value;
+            q.user.value = data.user || '';
+            q.face.value = data.face || '';
+            q.channel.value = data.channel || q.channel.value;
+            setType(sample === 'chart' ? 'chart' : 'text');
+            renderPreview();
+        });
+    });
+
+    $$('[data-chart]').forEach(function (chip) {
+        chip.addEventListener('click', function () {
+            q.title.value = chip.textContent.trim();
+            q.content.value = charts[chip.dataset.chart];
+            setType('chart');
+            renderPreview();
+        });
+    });
+
+    $('#test-form').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const pushKey = q.pk.value.trim();
+        if (!pushKey) return toast('push_key 不能为空', 'err');
+        if (!q.title.value.trim() && !q.content.value.trim()) return toast('标题和内容至少填写一项', 'err');
+
+        if (q.remember.checked) localStorage.setItem('pushme_key', pushKey);
+        else localStorage.removeItem('pushme_key');
+
+        const btn = $('#send');
+        btn.disabled = true;
+        try {
+            const res = await api('/', {
+                push_key: pushKey,
+                title: composeTitle(),
+                content: q.content.value,
+                type: currentType
+            });
+            const msg = String(res.msg || '');
+            if (msg === 'success') {
+                toast('已送达客户端');
+                q.title.value = '';
+                q.content.value = '';
+                renderPreview();
+            } else if (msg === 'queued') {
+                toast('当前无在线客户端，消息已入库，客户端上线后补投');
+                q.title.value = '';
+                q.content.value = '';
+                renderPreview();
+            } else if (msg === 'no_subscriber') {
+                toast('没有接收方，且离线补投已关闭', 'warn');
+            } else {
+                toast(msg || '发送失败', 'err');
+            }
+            pollStatus();
+        } catch (err) {
+            toast('请求失败：' + err.message, 'err');
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    $('#reset').addEventListener('click', function () {
+        setTimeout(function () {
+            q.content.value = '';
+            q.title.value = '';
+            q.user.value = '';
+            q.face.value = '';
+            q.channel.value = '';
+            q.theme.value = '';
+            setType('text');
+            renderPreview();
+        }, 0);
+    });
+
+    renderPreview();
+})();
+</script>
+{{/block}}

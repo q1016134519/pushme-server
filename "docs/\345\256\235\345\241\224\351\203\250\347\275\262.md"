@@ -1,0 +1,321 @@
+# PushMe Server 宝塔部署手册（v3.4.3）
+
+两条路线，选一条就行。**服务器上已经装了宝塔的 Docker 插件就走 A，没有就走 B。**
+
+| | A. Docker 路线 | B. Node 项目路线 |
+|---|---|---|
+| 上手难度 | 低，一次 build 之后不用管环境 | 中，要装 Node 22 并处理用户权限 |
+| 环境一致性 | 高（就是我验收用的那套镜像） | 取决于宝塔装的 Node 版本 |
+| 升级方式 | 拉代码 → 重新 build → 换容器 | 拉代码 → 重启进程 |
+| 要求 | 宝塔 Docker 插件 | Node.js 版本管理器 + v22.13 以上 |
+
+项目硬要求：**Node ≥ 22.13.0**（用了内置 `node:sqlite`）。宝塔默认的 Node 16/18 一定跑不起来。
+
+---
+
+## 0. 先弄清两个端口
+
+| 端口 | 干什么 | 能不能走宝塔反代 |
+|---|---|---|
+| `3010` | Web 管理面板（HTTP） | 能，正常反代 + 上 HTTPS |
+| `3100` | MQTT / WebSocket / 证书下载，三协议同一端口 | **不能**。这是原始 TCP 协议，必须客户端直连 IP:3100 |
+
+手机 App 连的是 **3100**，不是 80/443。所以 3100 必须对客户端网络可达。
+
+---
+
+## A. Docker 路线
+
+### A0. 直接用现成镜像（不想在本机构建就走这条）
+
+镜像由 GitHub Actions 自动构建并推到 GHCR（见 `.github/workflows/docker.yml`），公开仓库可匿名拉：
+
+```bash
+docker pull ghcr.io/q1016134519/pushme-server:3.4.3
+docker run -d --name pushme-server --restart unless-stopped \
+  -p 3010:3010 -p 3100:3100 -e TZ=Asia/Shanghai \
+  -v /www/wwwroot/pushme-server/config:/pushme-server/config \
+  ghcr.io/q1016134519/pushme-server:3.4.3
+```
+
+私有仓库要先登录（在 GitHub → Settings → Developer settings → Tokens 造一个带 `read:packages` 的 PAT）：
+
+```bash
+echo <PAT> | docker login ghcr.io -u q1016134519 --password-stdin
+```
+
+离线机器（宝塔在内网）用现成的镜像包导入，见 `docs/GitHub发布与镜像.md`。
+
+### A1. 放代码
+
+```bash
+mkdir -p /www/wwwroot && cd /www/wwwroot
+# 方式一：git
+git clone <你的仓库地址> pushme-server
+# 方式二：宝塔「文件」上传 pushme-server-3.4.3.tar.gz 后解压
+#   mkdir -p pushme-server && tar -xzf pushme-server-3.4.3.tar.gz -C pushme-server
+
+cd pushme-server
+```
+
+### A2. 构建前先摘掉线上配置（重要）
+
+仓库自带的 `config/data.json` 会被 `COPY config config.demo` 打进镜像。**带着它构建等于把自己的 key 和密码烤进镜像**，以后换机器一跑就撞配置。
+
+```bash
+rm -f config/data.json config/messages.db*
+ls config            # 只应剩下 app.js log.js view.js certs
+```
+
+### A3. 构建 + 启动
+
+```bash
+cd /www/wwwroot/pushme-server
+docker build -f docker/Dockerfile -t pushme-server:3.4.3 .
+```
+
+> 注意 `-f docker/Dockerfile`，Dockerfile 在 `docker/` 子目录里；直接 `docker build .` 会报
+> `unable to evaluate symlinks in Dockerfile path`。
+
+```bash
+mkdir -p /www/wwwroot/pushme-server/config
+docker run -d --name pushme-server \
+  --restart unless-stopped \
+  -p 3010:3010 -p 3100:3100 \
+  -e TZ=Asia/Shanghai \
+  -v /www/wwwroot/pushme-server/config:/pushme-server/config \
+  pushme-server:3.4.3
+```
+
+或者用现成的 compose（等价，少打字）：
+
+```bash
+cd /www/wwwroot/pushme-server
+docker compose up -d --build
+```
+
+### A4. 自查
+
+```bash
+docker ps --format '{{.Names}}\t{{.Image}}\t{{.Status}}'
+docker logs --tail 20 pushme-server
+```
+
+期望看到：
+
+```
+[store] message store ready: /pushme-server/config/messages.db
+PushMe panel+api started, listening on port 3010
+PushMe server started, listening on port 3100
+```
+
+> 宝塔 Docker 插件里也能点：镜像 → 构建（上下文选 `/www/wwwroot/pushme-server`，Dockerfile 填 `docker/Dockerfile`）→
+> 容器 → 创建映射 3010 / 3100 与上面那行 `-v`。
+
+---
+
+## B. Node 项目路线
+
+### B1. 装 Node（一次）
+
+宝塔 → 软件商店 → **Node.js 版本管理器** → 安装 **v22**（≥22.13）→ 把命令行版本切到 v22：
+
+```bash
+node -v          # 必须是 v22.13.0 及以上
+node -e 'require("node:sqlite");console.log("sqlite ok")'
+```
+
+第二行不打印 `sqlite ok` 就说明这个 Node 构建不带 sqlite，别继续。
+
+### B2. 放代码 + 装依赖 + 修权限
+
+代码放到 `/www/wwwroot/pushme-server` 后，直接跑脚本：
+
+```bash
+bash /www/wwwroot/pushme-server/scripts/install-node.sh
+```
+
+脚本干四件事：查 Node 版本 → `npm ci --omit=dev`（走 npmmirror）→ 补 `config/` 默认文件 → `chown -R www:www`。
+
+### B3. 挂到宝塔 Node 项目
+
+宝塔 → 软件商店 → **Node 项目** → 添加：
+
+| 字段 | 值 |
+|---|---|
+| 项目目录 | `/www/wwwroot/pushme-server` |
+| 启动选项 | `node server.js` |
+| 项目端口 | `3010`（仅登记，真实端口读 `config/data.json`） |
+| 运行用户 | `www` |
+| 包管理器 | 无（依赖已装好） |
+
+点「启动」，并在「设置 → 项目守护」打开开机自启。
+
+命令行等价：
+
+```bash
+npm i -g pm2
+cd /www/wwwroot/pushme-server
+pm2 start server.js --name pushme-server --time
+pm2 save && pm2 startup
+pm2 logs pushme-server --lines 30
+```
+
+---
+
+## 2. 放行端口
+
+```text
+宝塔 → 安全 → 放行 3010/tcp、3100/tcp
+云厂商控制台 → 安全组 → 同样放行 3010、3100
+```
+
+只放 3010 会变成「面板能开、手机连不上」——这是最常见的投诉。
+
+---
+
+## 3. 面板上域名 + HTTPS（可选但建议）
+
+宝塔 → 网站 → 添加站点（纯静态即可，别装 PHP）→ 域名填 `push.example.com` →
+设置 → **反向代理** → 目标 URL `http://127.0.0.1:3010` → 提交 →
+再点「SSL」申请 Let's Encrypt 证书并开「强制 HTTPS」。
+
+要手写配置就把 `docs/nginx-panel.conf` 里的 `location /` 段粘进站点的 `server{}`。
+
+**反代只做 3010。** `3100` 一旦被 Nginx 当 HTTP 处理，MQTT 握手会直接被撕碎（客户端表现为秒断）。
+
+### 如果 3100 实在不能对外
+
+只放出 443、又想走 TLS 的话，用 Nginx `stream` 做四层转发（宝塔 → 软件商店 → Nginx → 设置里确认装了 stream 模块）：
+
+```nginx
+# /www/server/nginx/conf/nginx.conf 里，与 http{} 平级
+stream {
+    upstream pushme_mqtt {
+        server 127.0.0.1:3100;
+    }
+    server {
+        listen 8443;
+        proxy_pass pushme_mqtt;
+        proxy_timeout 600s;
+    }
+}
+```
+
+然后 App 里填 `域名:8443` + `TLS 加密 = 有证书`（或自签名）。这条路能通，但比直连 3100 多一层排障成本，非必要不用。
+
+---
+
+## 4. 首次初始化
+
+**Docker 路线（A）**：容器第一次启动时已经预置好配置，直接登录，不走安装页：
+
+| 项目 | 默认值 |
+|---|---|
+| 地址 | `http://服务器IP:3010` |
+| 账号 / 密码 | `admin` / `admin123` |
+| push_key | 空 |
+
+`config/` 里已经有 `data.json` 时不会被覆盖，所以升级容器不会冲掉你自己的配置。
+
+**Node 项目路线（B）**：没有预置 `data.json`，第一次打开会自动跳安装页，自己设账号密码。
+
+登录后：
+
+1. **立刻改密码**：设置 → 账户密码。`admin123` 是公开默认值，不改等于没锁门。
+2. 加一个 **push_key**：默认是空的，客户端订阅和推送都用它；没加之前推送返回 `no_subscriber`。
+3. 消息保留：默认 7 天 / 每 key 500 条，按需改。
+4. 保持 `TLS = none`（除非你按上面第 3 节配了证书）。
+5. 「在线测试」页先用内置的测试连接打一发，确认面板 → broker → 客户端整条链路通。
+
+## 5. 客户端接入
+
+PushMe App → 设置 → 自建服务器：
+
+```
+服务器地址： 服务器公网IP 或 域名
+端口：      3100
+TLS 加密：  无证书
+Push Key：  第 4 步建的那个 key
+```
+
+连接成功后，面板首页「在线客户端」应该从 0 变 1。
+
+## 6. 验收（别只看面板绿点）
+
+```bash
+# 1) 面板推一条，看返回
+curl -sS -X POST 'http://服务器IP:3010/' \
+  --data-urlencode 'push_key=你的KEY' \
+  --data-urlencode 'title=部署验收' \
+  --data-urlencode 'content=第一条'
+
+# 2) 手机收到后，看服务端日志里的送达证据
+docker logs --since 5m pushme-server 2>&1 | grep puback
+#  → [puback] clientId=me_xxx mid=1234 topic=你的KEY msg=#1 status 1->2 at ...
+```
+
+日志里 `clientId` 是 App 的、`msg=#1` 是刚发那条、时间在收到之后 —— 三条对上才算真送达。
+
+脚本化验证（真 MQTT 客户端跑一遍 CONNECT/SUBSCRIBE/PUBLISH/PUBACK）：
+
+```bash
+node deploy/remote_check.js 服务器IP 3100 你的KEY 3010
+```
+
+---
+
+## 7. 备份 / 升级 / 回滚
+
+需要备份的只有 `config/` 这一个目录：
+
+```bash
+tar -czf /www/backup/pushme-$(date +%F).tar.gz -C /www/wwwroot/pushme-server config
+```
+
+里面有 `data.json`（账号、key、端口）、`messages.db`（消息台账）、证书。
+
+升级（Docker）：
+
+```bash
+cd /www/wwwroot/pushme-server
+git pull                                   # 或解压新包覆盖
+rm -f config/data.json.bak                 # 别删 config/data.json，那是线上配置
+docker build -f docker/Dockerfile -t pushme-server:新版本 .
+docker rm -f pushme-server
+docker run -d --name pushme-server --restart unless-stopped \
+  -p 3010:3010 -p 3100:3100 -e TZ=Asia/Shanghai \
+  -v /www/wwwroot/pushme-server/config:/pushme-server/config \
+  pushme-server:新版本
+```
+
+> **血泪教训**：升级时千万别把仓库里的 `config/` 覆盖到线上目录。3.4.1 我这么干过一次，
+> 线上 push_key 和管理员密码全被换成开发默认值。解压新包只覆盖 `app/ lib/ public/ docker/ package.json server.js`，
+> `config/` 一个字节都别动。
+
+升级（Node 项目）：
+
+```bash
+cd /www/wwwroot/pushme-server
+git pull && npm ci --omit=dev --registry=https://registry.npmmirror.com
+pm2 restart pushme-server        # 宝塔 Node 项目就点「重启」
+```
+
+老库会自动迁移（`ALTER TABLE messages ADD COLUMN sent_at`），不用手动改表。
+
+回滚 = 换回旧镜像 tag / `git checkout` 旧版本后重启，config 不动，数据不丢。
+
+---
+
+## 8. 坑清单（按踩到的概率排序）
+
+1. **Node 版本不够**：`node:sqlite` 找不到 → 启动即崩。必须 ≥ 22.13，且要官方构建。
+2. **`config/` 权限**：Docker 跑出来的 `data.json` 是 `root:root`，改走 Node 项目后 `www` 写不进去，面板保存设置静默失败。`chown -R www:www config`。
+3. **只放行 3010**：面板能开、App 连不上。3100 也要放行（宝塔安全 + 云安全组）。
+4. **把 3100 挂到 Nginx 反代**：MQTT 客户端连上就断，表现为 "connection reset"。
+5. **构建报找不到 Dockerfile**：`docker build -f docker/Dockerfile .`，别省 `-f`。
+6. **`docker/Run.sh` 带 CRLF**：Windows 打包上传的源码要先 `sed -i 's/\r$//' docker/Run.sh`，否则容器里 `sh` 报 `\r: not found`。
+7. **端口冲突**：宝塔上如果已有服务占 3010/3100，先在「设置」里改成 8080/13100 之类，再同步改容器 `-p`。
+8. **改完端口忘了改映射**：`data.json` 里的 `panel_port`/`server_port` 和 `docker run -p` 必须一致。
+9. **容器名重复**：重复部署前 `docker rm -f pushme-server`，否则 `-p` 冲突起不来。
+10. **备份只备了代码没备 config**：`messages.db` 和 `data.json` 都在 config 里，那才是唯一不可再生的东西。

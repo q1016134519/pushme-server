@@ -1,0 +1,243 @@
+{{extend './layout.htm'}}
+
+{{block 'topbar'}}
+{{if dashboard_ready}}
+<span class="topbar-pill {{service_status == 'start' ? '' : 'is-off'}}" data-pill>
+    <span data-field="status_short">{{service_status == 'start' ? '运行中' : '已停止'}}</span>
+</span>
+{{/if}}
+{{/block}}
+
+{{block 'main'}}
+<section class="hero">
+    <div class="hero-top">
+        <h1>PushMe Server</h1>
+        {{if dashboard_ready}}
+        <span class="pill {{service_status == 'start' ? '' : 'is-off'}}" data-pill>
+            <span data-field="status_text">{{service_status == 'start' ? '消息服务运行中' : '消息服务已停止'}}</span>
+        </span>
+        {{/if}}
+    </div>
+    <p>私有数据 · 离线补投 · PUBACK 级送达回执</p>
+    <div class="hero-actions">
+        <a class="btn btn-primary" href="{{url('test/index')}}">在线测试</a>
+        {{if dashboard_ready}}
+        <a class="btn" href="{{url('message/index')}}">消息台账</a>
+        <a class="btn" href="{{url('setting/index')}}">设置</a>
+        {{else}}
+        <a class="btn" href="{{url('login/index')}}">登录面板</a>
+        {{/if}}
+    </div>
+</section>
+
+{{if !dashboard_ready}}
+<div class="card" style="margin-top: 14px;">
+    <div class="card-bd">
+        <div class="empty">
+            <div class="big">登录后查看运行统计</div>
+            <div>仪表盘展示在线客户端、今日推送量、送达率与最近消息，仅对已登录的管理员可见。</div>
+            <div style="margin-top: 16px;"><a class="btn btn-primary" href="{{url('login/index')}}">去登录</a></div>
+        </div>
+    </div>
+</div>
+{{else}}
+
+<div class="stats dash" style="margin-top: 14px;">
+    <div class="stat">
+        <div class="k">在线客户端</div>
+        <div class="v ok" data-field="client_count">{{client_count}}</div>
+    </div>
+    <div class="stat">
+        <div class="k">今日推送</div>
+        <div class="v" data-field="today_total">{{stats.today_total}}</div>
+    </div>
+    <div class="stat">
+        <div class="k">今日送达率</div>
+        <div class="v" data-field="today_rate">{{today_rate}} <small>{{today_rate_pct}}%</small></div>
+    </div>
+    <div class="stat">
+        <div class="k">消息总数</div>
+        <div class="v" data-field="message_count">{{stats.total}}</div>
+    </div>
+    <div class="stat">
+        <div class="k">待补投队列</div>
+        <div class="v warn" data-field="offline_count">{{offline_count}}</div>
+    </div>
+    <div class="stat">
+        <div class="k">已送达</div>
+        <div class="v ok" data-field="delivered_count">{{stats.delivered}}</div>
+    </div>
+</div>
+
+<div class="dash-grid">
+    <section class="card">
+        <div class="card-hd">
+            <div>
+                <h2>最近消息</h2>
+                <div class="sub">最新 6 条，含未送达排队中的消息</div>
+            </div>
+            <a class="btn btn-sm btn-ghost" href="{{url('message/index')}}">全部</a>
+        </div>
+        <div class="card-bd tight">
+            {{if recent_rows.length}}
+            <div class="table-wrap">
+                <table class="table dash-table">
+                    <colgroup>
+                        <col style="width: 62px">
+                        <col>
+                        <col style="width: 108px">
+                        <col style="width: 128px">
+                    </colgroup>
+                    <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>标题</th>
+                        <th>状态</th>
+                        <th>时间</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {{each recent_rows row}}
+                    <tr>
+                        <td class="num c-id">{{row.id}}</td>
+                        <td class="cell-title c-main" title="{{row.title}}">{{row.title}}</td>
+                        <td class="c-status">
+                            {{if row.status == 2}}
+                            <span class="badge badge-ok">{{row.status_text}}</span>
+                            {{else if row.status == 1}}
+                            <span class="badge badge-info">{{row.status_text}}</span>
+                            {{else if row.status == 0}}
+                            <span class="badge badge-warn">{{row.status_text}}</span>
+                            {{else}}
+                            <span class="badge badge-err">{{row.status_text}}</span>
+                            {{/if}}
+                        </td>
+                        <td class="num c-time">{{row.created_at}}</td>
+                    </tr>
+                    {{/each}}
+                    </tbody>
+                </table>
+            </div>
+            {{else}}
+            <div class="empty">
+                <div class="big">还没有消息</div>
+                <div>去 <a href="{{url('test/index')}}">在线测试</a> 发一条试试。</div>
+            </div>
+            {{/if}}
+        </div>
+    </section>
+
+    <div>
+        <section class="card">
+            <div class="card-hd">
+                <div>
+                    <h2>快捷入口</h2>
+                    <div class="sub">常用操作</div>
+                </div>
+            </div>
+            <div class="card-bd tight" style="padding: 8px;">
+                <nav class="quick">
+                    <a href="{{url('test/index')}}">
+                        <span>在线测试<br><span class="desc">发一条真实推送，看送达回执</span></span>
+                        <span class="arrow">›</span>
+                    </a>
+                    <a href="{{url('message/index')}}">
+                        <span>消息台账<br><span class="desc">按 key / 状态 / 关键字检索与重发</span></span>
+                        <span class="arrow">›</span>
+                    </a>
+                    <a href="{{url('setting/index')}}">
+                        <span>系统设置<br><span class="desc">端口、证书、PushKey、保留策略</span></span>
+                        <span class="arrow">›</span>
+                    </a>
+                </nav>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="card-hd">
+                <div>
+                    <h2>相关文档</h2>
+                    <div class="sub">接口协议与客户端</div>
+                </div>
+            </div>
+            <div class="card-bd">
+                <div class="doc-list">
+                    <a href="https://push.i-i.me" target="_blank" rel="noopener"><b>接口文档</b> <span>GET/POST 参数与消息类型</span></a>
+                    <a href="https://push.i-i.me" target="_blank" rel="noopener"><b>APP 下载</b> <span>Android 客户端</span></a>
+                    <a href="https://github.com/yafoo/pushme-server" target="_blank" rel="noopener"><b>PushMeServer</b> <span>服务端源码</span></a>
+                    <a href="https://github.com/yafoo/pushme-client" target="_blank" rel="noopener"><b>PushMeClient</b> <span>客户端源码</span></a>
+                    <a href="https://github.com/yafoo/pushme-plugin" target="_blank" rel="noopener"><b>PushMePlugin</b> <span>浏览器插件</span></a>
+                    <a href="https://t.me/pushme_channel" target="_blank" rel="noopener"><b>Telegram</b> <span>更新频道</span></a>
+                </div>
+                <div class="divider"></div>
+                <dl class="kv">
+                    <dt>服务端口</dt><dd>{{server_port}}</dd>
+                    <dt>客户端连接</dt><dd><span data-field="connection_count">{{connection_count}}</span> 个连接 / <span data-field="client_count">{{client_count}}</span> 个客户端</dd>
+                    <dt>服务运行</dt><dd data-field="pushme_uptime">-</dd>
+                    <dt>面板运行</dt><dd data-field="panel_uptime">-</dd>
+                    <dt>保留策略</dt>
+                    <dd>{{retain_text}} / {{quota_text}}</dd>
+                </dl>
+            </div>
+        </section>
+    </div>
+</div>
+{{/if}}
+{{/block}}
+
+{{block 'js'}}
+{{if dashboard_ready}}
+<script>
+(function () {
+    const {api, fmtDuration, $, $$} = App;
+    const STATUS_URL = '{{url("server/status")}}';
+
+    function setField(name, value) {
+        const text = value === undefined || value === null || value === '' ? '-' : value;
+        $$('[data-field="' + name + '"]').forEach(function (el) { el.textContent = text; });
+    }
+
+    function renderRate(d) {
+        const el = $('[data-field="today_rate"]');
+        if (!el) return;
+        const total = Number(d.today_total) || 0;
+        const done = Number(d.today_delivered) || 0;
+        if (!total) { el.textContent = '0'; return; }
+        el.innerHTML = done + '/' + total + ' <small>' + Math.round(done / total * 100) + '%</small>';
+    }
+
+    function renderStatus(status) {
+        const on = String(status) === 'start';
+        $$('[data-pill]').forEach(function (pill) { pill.classList.toggle('is-off', !on); });
+        setField('status_text', on ? '消息服务运行中' : '消息服务已停止');
+        setField('status_short', on ? '运行中' : '已停止');
+    }
+
+    async function tick() {
+        if (document.hidden) return;
+        let res;
+        try {
+            res = await api(STATUS_URL);
+        } catch (err) {
+            return;
+        }
+        if (!res.state) return;
+        const d = res.data || {};
+        setField('client_count', d.client_count);
+        setField('connection_count', d.connection_count);
+        setField('offline_count', d.offline_count);
+        setField('message_count', d.message_count);
+        setField('delivered_count', d.delivered_count);
+        setField('today_total', d.today_total);
+        setField('pushme_uptime', fmtDuration(d.pushme_uptime));
+        setField('panel_uptime', fmtDuration(d.panel_uptime));
+        renderRate(d);
+        renderStatus(d.pushme_status);
+    }
+
+    tick();
+    setInterval(tick, 5000);
+})();
+</script>
+{{/if}}
+{{/block}}

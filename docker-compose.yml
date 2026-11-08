@@ -1,0 +1,23 @@
+# 一条命令起服务：docker compose up -d --build
+# 面板 3010 / MQTT+WS+证书 3100
+services:
+  pushme:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: pushme-server:3.4.3
+    container_name: pushme-server
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+    ports:
+      - "3010:3010"   # Web 管理面板（可挂 Nginx 反代 + HTTPS）
+      - "3100:3100"   # MQTT / WebSocket / 证书下载，三协议复用；必须客户端直连
+    volumes:
+      # 配置与消息台账落在宿主机：删容器不丢数据
+      - ./config:/pushme-server/config
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

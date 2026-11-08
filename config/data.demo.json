@@ -1,0 +1,15 @@
+{
+  "config_version": 2,
+  "user": "4517e7f654397faa721feddcf2e49087",
+  "password": "29840c3f65f21227b9a4c244a3417700",
+  "push_keys": [],
+  "panel_port": 3010,
+  "panel_tls": "none",
+  "server_port": 3100,
+  "tls": "none",
+  "status": "start",
+  "messages": {
+    "retain_days": 7,
+    "max_per_key": 500
+  }
+}

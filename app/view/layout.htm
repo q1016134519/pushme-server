@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0e9f7a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="PushMe">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="format-detection" content="telephone=no">
+    <title>{{title || 'PushMe Server'}}</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/favicon.svg">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="stylesheet" href="/css/app.css?v={{version}}">
+    {{block 'css'}}{{/block}}
+</head>
+<body class="{{if cur_nav == 'login' || cur_nav == 'install'}}no-chrome{{/if}}">
+<div class="shell">
+    <aside class="sidebar">
+        <a class="brand" href="/">
+            <span class="brand-mark">P</span>
+            <span class="brand-text">PushMe<span class="brand-ver">{{version}}</span></span>
+        </a>
+        <div class="nav-label">导航</div>
+        <nav class="nav">
+            <a class="nav-item {{cur_nav == '/' ? 'is-active' : ''}}" href="/">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>
+                <span>首页</span>
+            </a>
+            {{if is_install}}
+            <a class="nav-item {{cur_nav == 'test' ? 'is-active' : ''}}" href="{{url('test/index')}}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3 10.5 13.5"/><path d="M21 3l-6.5 18-4-8-8-4L21 3Z"/></svg>
+                <span>在线测试</span>
+            </a>
+            {{/if}}
+            {{if !is_install}}
+            <a class="nav-item {{cur_nav == 'install' ? 'is-active' : ''}}" href="{{url('login/install')}}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M4 19h16"/></svg>
+                <span>安装</span>
+            </a>
+            {{else if is_login}}
+            <a class="nav-item {{cur_nav == 'message' ? 'is-active' : ''}}" href="{{url('message/index')}}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.8 7.2 8.2 6 8.2-6"/></svg>
+                <span>消息台账</span>
+            </a>
+            <a class="nav-item {{cur_nav == 'setting' ? 'is-active' : ''}}" href="{{url('setting/index')}}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-2.9-1.2l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15H4.5a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.2-2.9l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 12 4.6V4.5a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0 1.2 2.9h.1a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.53 1Z"/></svg>
+                <span>设置</span>
+            </a>
+            {{/if}}
+        </nav>
+        <div class="sidebar-foot">
+            {{if is_login}}
+            <a class="nav-item" href="{{url('login/logout')}}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H15"/><path d="M10 8.5 6.5 12l3.5 3.5"/><path d="M6.5 12H16"/></svg>
+                <span>退出登录</span>
+            </a>
+            {{else}}
+            {{if is_install}}
+            <a class="nav-item {{cur_nav == 'login' ? 'is-active' : ''}}" href="{{url('login/index')}}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H15"/><path d="m10 8.5 3.5 3.5L10 15.5"/><path d="M13.5 12H4"/></svg>
+                <span>登录</span>
+            </a>
+            {{/if}}
+            {{/if}}
+        </div>
+    </aside>
+
+    <div class="page">
+        <header class="topbar">
+            <a class="brand-mark" href="/">P</a>
+            <div class="topbar-title">
+                {{if cur_nav == '/'}}
+                <b>首页</b><span>运行概览与统计</span>
+                {{else if cur_nav == 'test'}}
+                <b>在线测试</b><span>发一条真实推送</span>
+                {{else if cur_nav == 'message'}}
+                <b>消息台账</b><span>未送达与已送达记录</span>
+                {{else if cur_nav == 'setting'}}
+                <b>设置</b><span>服务、存储与凭证</span>
+                {{else if cur_nav == 'login'}}
+                <b>登录</b><span>管理面板</span>
+                {{else if cur_nav == 'install'}}
+                <b>安装</b><span>首次初始化</span>
+                {{else}}
+                <b>PushMe</b><span>{{version}}</span>
+                {{/if}}
+            </div>
+            <div class="topbar-side">
+                {{block 'topbar'}}{{/block}}
+                {{if is_login}}
+                <a class="topbar-btn" href="{{url('setting/index')}}" aria-label="设置">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-2.9-1.2l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15H4.5a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.2-2.9l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 12 4.6V4.5a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0 1.2 2.9h.1a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.53 1Z"/></svg>
+                </a>
+                {{/if}}
+            </div>
+        </header>
+        <main class="main">
+            {{block 'main'}}{{/block}}
+        </main>
+    </div>
+</div>
+
+<nav class="tabbar">
+    <a class="{{cur_nav == '/' ? 'is-active' : ''}}" href="/">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>
+        <span>首页</span>
+    </a>
+    {{if is_login}}
+    <a class="{{cur_nav == 'message' ? 'is-active' : ''}}" href="{{url('message/index')}}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.8 7.2 8.2 6 8.2-6"/></svg>
+        <span>消息</span>
+    </a>
+    {{/if}}
+    {{if is_install}}
+    <a class="{{cur_nav == 'test' ? 'is-active' : ''}}" href="{{url('test/index')}}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3 10.5 13.5"/><path d="M21 3l-6.5 18-4-8-8-4L21 3Z"/></svg>
+        <span>测试</span>
+    </a>
+    {{/if}}
+    {{if is_login}}
+    <a class="{{cur_nav == 'setting' ? 'is-active' : ''}}" href="{{url('setting/index')}}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-2.9-1.2l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15H4.5a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.2-2.9l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 12 4.6V4.5a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0 1.2 2.9h.1a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.53 1Z"/></svg>
+        <span>设置</span>
+    </a>
+    {{else if is_install}}
+    <a class="{{cur_nav == 'login' ? 'is-active' : ''}}" href="{{url('login/index')}}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H15"/><path d="m10 8.5 3.5 3.5L10 15.5"/><path d="M13.5 12H4"/></svg>
+        <span>登录</span>
+    </a>
+    {{/if}}
+</nav>
+
+<script src="/js/app.js?v={{version}}"></script>
+{{block 'js'}}{{/block}}
+</body>
+</html>

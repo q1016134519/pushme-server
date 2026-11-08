@@ -1,0 +1,162 @@
+# 发布到 GitHub 与准备镜像
+
+两件事分开看：**代码进仓库** 和 **镜像能落地**。镜像有两条路 —— 云端自动构建（GHCR）和内网离线导入（tar）。
+
+---
+
+## 一、代码进仓库
+
+### 1. 建仓库
+
+网页建：GitHub → New repository → 名字 `pushme-server` → **不要**勾 README（本地已有提交）。
+
+或者用 API（把 `TOKEN` 换成带 `repo` scope 的 PAT）：
+
+```bash
+curl -sS -X POST https://api.github.com/user/repos \
+  -H "Authorization: token TOKEN" \
+  -H "Accept: application/vnd.github+json" \
+  -d '{"name":"pushme-server","private":false,"description":"Self-hosted PushMe server: MQTT push + SQLite ledger + strict PUBACK delivery + web panel"}'
+```
+
+### 一条命令搞定（推荐）
+
+令牌不落盘：从环境变量读，推送时临时拼进 URL，结束立刻还原成干净地址。
+
+```bash
+cd /d/AITEST/pushme/repo
+TOKEN=ghp_xxxxxxxx bash scripts/publish-github.sh
+```
+
+它依次做：校验令牌 → 仓库不存在就建 → 推 `HEAD:master` → 打 `v3.4.3` tag 触发镜像构建 → 打印仓库/构建/镜像地址。
+
+### 2. 手动加远端并推（脚本已覆盖，留作参考）
+
+本地仓库现在有两个远端：`origin` 指上游 `yafoo/pushme-server`（保留着便于以后同步），
+`mine` 指自己的仓库：
+
+```bash
+cd /d/AITEST/pushme/repo
+git remote add mine https://github.com/q1016134519/pushme-server.git   # 已加过就跳过
+git push -u mine master
+```
+
+直连被墙（`Connection reset` / 超时）时，换成走代理的地址，或改用 SSH 443：
+
+```bash
+# 方案 1：镜像代理（仅当代理支持 push）
+git remote set-url mine https://gh-proxy.com/https://github.com/q1016134519/pushme-server.git
+
+# 方案 2：SSH over 443（需要把 ~/.ssh/id_ed25519_github.pub 加到 GitHub → SSH keys）
+git remote set-url mine ssh://git@ssh.github.com:443/q1016134519/pushme-server.git
+git push -u mine master
+```
+
+### 3. 打 tag 触发构建
+
+```bash
+git tag -a v3.4.3 -m "v3.4.3 严格 PUBACK 送达 + 确认方列 + 补投去重"
+git push mine v3.4.3
+```
+
+---
+
+## 二、镜像
+
+### 路线 A：GitHub Actions 自动构建到 GHCR（推荐）
+
+`.github/workflows/docker.yml` 在推 `v*` tag 或手动 `workflow_dispatch` 时构建并推送：
+
+```
+ghcr.io/q1016134519/pushme-server:3.4.3
+ghcr.io/q1016134519/pushme-server:latest
+```
+
+用的是仓库自带的 `GITHUB_TOKEN`，不需要额外配 secret。产物是 `linux/amd64`。
+
+第一次跑完，到 GitHub → 个人头像 → Packages 里能看到这个包。**公开仓库默认包也是公开的**，可直接匿名拉：
+
+```bash
+docker pull ghcr.io/q1016134519/pushme-server:3.4.3
+```
+
+如果是私有仓库，拉之前要登录（PAT 勾 `read:packages`）：
+
+```bash
+echo <PAT> | docker login ghcr.io -u q1016134519 --password-stdin
+```
+
+> 想让 Actions 同时出 arm64（树莓派 / 甲骨文 ARM 机器），在 `docker.yml` 的 build 步骤加
+> `platforms: linux/amd64,linux/arm64`，并确认 `permissions.packages: write` 已开。
+
+### 路线 B：离线镜像包（宝塔在内网、拉不动 GHCR 时用）
+
+已经打好一个 **docker-archive 格式** 的包（就是这个格式，不是 OCI，老版本 docker 也能 load）：
+
+| 项目 | 值 |
+|---|---|
+| 文件（本机） | `D:\AITEST\pushme\deploy\pushme-server-3.4.3-image.tar.gz` |
+| 大小 | 68 MB（解开约 305 MB） |
+| sha256 | `435b83921cd7321890cc92111be248c4ec4881520de2783c4c21c0fc5a5c2907` |
+| 内含 tag | `pushme-server:3.4.3`、`ghcr.io/q1016134519/pushme-server:3.4.3`、`...:latest` |
+| 平台 | linux/amd64 |
+| 基础镜像 | node:22-alpine3.22 |
+
+导入（宝塔终端，或宝塔 Docker 插件的「镜像 → 导入」）：
+
+```bash
+gzip -t pushme-server-3.4.3-image.tar.gz            # 先验完整性
+docker load -i pushme-server-3.4.3-image.tar.gz
+docker images | grep pushme-server                  # 应看到 3 个 tag
+```
+
+起服务：
+
+```bash
+mkdir -p /www/wwwroot/pushme-server/config
+docker run -d --name pushme-server --restart unless-stopped \
+  -p 3010:3010 -p 3100:3100 -e TZ=Asia/Shanghai \
+  -v /www/wwwroot/pushme-server/config:/pushme-server/config \
+  pushme-server:3.4.3
+```
+
+也可以把包放到宝塔能访问的目录，用 compose 里的 `image: pushme-server:3.4.3` 直接引用，不再 build。
+
+### 路线 C：目标机器上现构（最稳，但要求能拉到基础镜像）
+
+```bash
+cd /www/wwwroot/pushme-server
+rm -f config/data.json            # 别把线上配置烤进镜像
+docker build -f docker/Dockerfile -t pushme-server:3.4.3 .
+```
+
+---
+
+## 三、镜像里有什么、没有什么
+
+有：`app/ lib/ public/ docker/ server.js package.json`、生产依赖（`npm ci --omit=dev`）、`config.demo`
+（只有 `app.js / log.js / view.js` 三个默认配置）。
+
+没有：`config/data.json`、`messages.db*`、证书、`.git`、`node_modules` 里的 dev 依赖。
+`docker/Dockerfile.dockerignore` 里显式排掉了 `/config/data.json`，构建时不会夹带。
+
+验证镜像干净（构建后跑一次）：
+
+```bash
+docker run --rm pushme-server:3.4.3 sh -c 'ls /pushme-server/config.demo; test ! -f /pushme-server/config.demo/data.json && echo "no secrets"'
+```
+
+期望输出：三行 `.js` + `no secrets`。
+
+---
+
+## 四、发布前自检清单
+
+```bash
+git status --porcelain                 # 应为空
+git log --oneline -1                   # 342042c feat: v3.4.3 ...
+git ls-files | grep -E "data\.json|messages\.db" # 必须无输出
+npm test                               # 29/29
+```
+
+`config/data.json`、`messages.db*`、`config/certs/` 都在 `.gitignore` 里，别用 `git add -f` 强行加。

@@ -1,0 +1,321 @@
+{{extend './layout.htm'}}
+
+{{block 'main'}}
+<div class="page-hd">
+    <div>
+        <h1>消息台账</h1>
+        <div class="sub">保留 {{retain_days}} 天 / 每 key 最多 {{max_per_key}} 条 · 送达只认客户端 PUBACK · 确认方标<span class="by-chip is-script" style="margin:0 2px;">脚本</span>的是部署验收脚本，不是手机</div>
+    </div>
+    <div class="btn-group">
+        <button class="btn" type="button" id="btn-refresh">刷新</button>
+        <button class="btn" type="button" id="btn-export">导出 CSV</button>
+    </div>
+</div>
+
+<div class="stats" id="stats">
+    <div class="stat"><div class="k">全部消息</div><div class="v" data-stat="total">-</div></div>
+    <div class="stat"><div class="k">未送达</div><div class="v warn" data-stat="queued">-</div></div>
+    <div class="stat"><div class="k">已下发未确认</div><div class="v" data-stat="sent">-</div></div>
+    <div class="stat"><div class="k">已送达</div><div class="v ok" data-stat="delivered">-</div></div>
+    <div class="stat"><div class="k">今日送达</div><div class="v" data-stat="today"><small>-</small></div></div>
+</div>
+
+<div class="card">
+    <div class="card-hd">
+        <div class="filters">
+            <select class="select" id="f-key">
+                <option value="">全部 push_key</option>
+            </select>
+            <select class="select" id="f-status">
+                <option value="">全部状态</option>
+                <option value="0">未送达</option>
+                <option value="1">已下发未确认</option>
+                <option value="2">已送达</option>
+                <option value="3">已过期</option>
+                <option value="4">已丢弃</option>
+            </select>
+            <input class="input" type="search" id="f-keyword" placeholder="搜索标题或内容">
+            <button class="btn btn-sm btn-primary" type="button" id="btn-search">查询</button>
+            <button class="btn btn-sm btn-ghost" type="button" id="btn-reset">重置</button>
+        </div>
+        <div class="hint" style="margin: 0;" id="f-tip"></div>
+    </div>
+
+    <div class="card-bd tight">
+        <div class="table-wrap">
+            <table class="table is-fixed">
+                <colgroup>
+                    <col style="width: 146px;">
+                    <col style="width: 118px;">
+                    <col>
+                    <col style="width: 92px;">
+                    <col style="width: 128px;">
+                    <col style="width: 140px;">
+                    <col style="width: 168px;">
+                </colgroup>
+                <thead>
+                <tr>
+                    <th>时间</th>
+                    <th>push_key</th>
+                    <th>标题 / 内容</th>
+                    <th>状态</th>
+                    <th>送达时间</th>
+                    <th>确认方</th>
+                    <th>操作</th>
+                </tr>
+                </thead>
+                <tbody id="rows"></tbody>
+            </table>
+        </div>
+        <div class="empty" id="empty" style="display: none;">
+            <div class="big">没有符合条件的消息</div>
+            <div>换个状态或关键字再查一次</div>
+        </div>
+        <div class="pager" id="pager" style="display: none;">
+            <div id="pager-info">-</div>
+            <div class="btn-group">
+                <button class="btn btn-sm" type="button" id="prev">上一页</button>
+                <button class="btn btn-sm" type="button" id="next">下一页</button>
+            </div>
+        </div>
+    </div>
+</div>
+{{/block}}
+
+{{block 'js'}}
+<script>
+(function () {
+    'use strict';
+
+    const pushKeys = {{@ push_keys_json}} || [];
+    const state = {key: '', status: '', keyword: '', page: 1, size: 20};
+    let total = 0;
+
+    const rowsEl = document.getElementById('rows');
+    const emptyEl = document.getElementById('empty');
+    const pagerEl = document.getElementById('pager');
+    const tipEl = document.getElementById('f-tip');
+
+    /** push_key 下拉 */
+    const keySelect = document.getElementById('f-key');
+    pushKeys.forEach(function (item) {
+        const opt = document.createElement('option');
+        opt.value = item.push_key;
+        opt.textContent = item.note ? (item.push_key + ' · ' + item.note) : item.push_key;
+        keySelect.appendChild(opt);
+    });
+
+    /** 状态徽标 */
+    function badge(row) {
+        return '<span class="badge ' + App.statusClass(row.status) + '">' + App.escapeHtml(row.status_text) + '</span>';
+    }
+
+    /** 确认方：谁回的 PUBACK。脚本客户端单独标灰，避免和真机混淆 */
+    function confirmerHtml(row) {
+        if (!row.confirmed_by) {
+            return '<span style="opacity:.5">—</span>';
+        }
+        const name = App.escapeHtml(row.confirmed_by);
+        const more = row.confirmed_count > 1 ? '<span class="by-more">+' + (row.confirmed_count - 1) + '</span>' : '';
+        if (row.confirmed_script) {
+            return '<span class="by-chip is-script" title="' + name + '">脚本</span>' + more;
+        }
+        return '<span class="by-name mono" title="' + name + '">' + name + '</span>' + more;
+    }
+
+    /** 一行 */
+    function rowHtml(row) {
+        const sub = row.content ? App.escapeHtml(row.content).slice(0, 90) : '<span style="opacity:.6">（无正文）</span>';
+        // 送达时间与创建时间相同（在线即时送达）时，移动端不重复展示
+        const showDelivered = !!row.delivered_text && row.delivered_text !== row.created_text;
+        return '<tr data-id="' + row.id + '">' +
+            '<td class="num c-time">' + App.escapeHtml(row.created_text) + '</td>' +
+            '<td class="cell-key c-key">' + App.escapeHtml(row.push_key) + '</td>' +
+            '<td class="c-main"><div class="cell-title" title="' + App.escapeHtml(row.title || '') + '">' +
+            (row.title ? App.escapeHtml(row.title) : '<span style="opacity:.6">（无标题）</span>') +
+            '</div><div class="cell-sub">' + sub + '</div></td>' +
+            '<td class="c-status">' + badge(row) + '</td>' +
+            '<td class="num c-delivered"' + (row.delivered_text ? (showDelivered ? '' : ' data-dupe="1"') : ' data-empty="1"') + '>' +
+            '<span class="c-dlabel">送达 </span>' +
+            (row.delivered_text ? App.escapeHtml(row.delivered_text) : '<span style="opacity:.5">—</span>') +
+            '</td>' +
+            '<td class="c-by"' + (row.confirmed_by ? '' : ' data-empty="1"') + '>' +
+            '<span class="c-blabel">确认 </span>' + confirmerHtml(row) +
+            '</td>' +
+            '<td class="actions c-actions">' +
+            '<button class="btn btn-sm" data-act="detail" type="button">详情</button> ' +
+            '<button class="btn btn-sm" data-act="resend" type="button">重发</button> ' +
+            '<button class="btn btn-sm btn-danger" data-act="remove" type="button">删除</button>' +
+            '</td></tr>';
+    }
+
+    /** 统计条 */
+    function renderStats(stats) {
+        if (!stats) return;
+        const map = {
+            total: stats.total,
+            queued: stats.queued,
+            sent: stats.sent,
+            delivered: stats.delivered
+        };
+        Object.keys(map).forEach(function (k) {
+            const el = document.querySelector('[data-stat="' + k + '"]');
+            if (el) el.textContent = map[k] == null ? '-' : map[k];
+        });
+        const today = document.querySelector('[data-stat="today"]');
+        if (today) today.innerHTML = (stats.today_delivered || 0) + '<small>/ ' + (stats.today_total || 0) + '</small>';
+    }
+
+    /** 分页 */
+    function renderPager() {
+        const pages = Math.max(1, Math.ceil(total / state.size));
+        if (state.page > pages) state.page = pages;
+        pagerEl.style.display = total ? '' : 'none';
+        document.getElementById('pager-info').textContent =
+            '共 ' + total + ' 条 · 第 ' + state.page + ' / ' + pages + ' 页';
+        document.getElementById('prev').disabled = state.page <= 1;
+        document.getElementById('next').disabled = state.page >= pages;
+    }
+
+    /** 查询 */
+    async function load() {
+        rowsEl.innerHTML = '<tr><td colspan="7" style="padding:26px 16px;color:#8a97a8;">加载中…</td></tr>';
+        const res = await App.api('{{url("message/list")}}', state);
+        if (!res.state) {
+            rowsEl.innerHTML = '';
+            emptyEl.style.display = '';
+            emptyEl.querySelector('.big').textContent = res.msg || '查询失败';
+            tipEl.textContent = '';
+            return;
+        }
+        const data = res.data || {};
+        total = data.total || 0;
+        const rows = data.rows || [];
+        renderStats(data.stats);
+        if (!rows.length) {
+            rowsEl.innerHTML = '';
+            emptyEl.style.display = '';
+            emptyEl.querySelector('.big').textContent = '没有符合条件的消息';
+        } else {
+            emptyEl.style.display = 'none';
+            rowsEl.innerHTML = rows.map(rowHtml).join('');
+        }
+        renderPager();
+
+        const filterText = [];
+        if (state.key) filterText.push('key=' + state.key);
+        if (state.status !== '') filterText.push('状态=' + ({0: '未送达', 1: '已下发', 2: '已送达', 3: '已过期', 4: '已丢弃'})[state.status]);
+        if (state.keyword) filterText.push('关键字=' + state.keyword);
+        tipEl.textContent = filterText.length ? '筛选：' + filterText.join(' · ') : '全部记录';
+    }
+
+    /** 详情弹窗 */
+    async function showDetail(id) {
+        const res = await App.api('{{url("message/detail")}}', {id: id});
+        if (!res.state) return App.toast(res.msg || '读取失败', 'err');
+        const row = res.data || {};
+        let payload = row.raw || '';
+        try { payload = JSON.stringify(JSON.parse(row.raw), null, 2); } catch (e) { /* 原样显示 */ }
+        const body =
+            '<dl class="kv" style="margin-bottom:14px;">' +
+            '<dt>ID</dt><dd>' + row.id + '</dd>' +
+            '<dt>push_key</dt><dd class="mono">' + App.escapeHtml(row.push_key) + '</dd>' +
+            '<dt>状态</dt><dd>' + badge(row) + '（尝试 ' + (row.attempts || 0) + ' 次）</dd>' +
+            '<dt>创建时间</dt><dd>' + App.escapeHtml(row.created_text) + '</dd>' +
+            '<dt>送达时间</dt><dd>' + (row.delivered_text ? App.escapeHtml(row.delivered_text) : '—') + '</dd>' +
+            '<dt>送达客户端</dt><dd class="mono">' + (row.delivered_to ? App.escapeHtml(row.delivered_to) : '—') +
+            (row.confirmed_script ? '<span class="by-chip is-script" style="margin-left:8px;">脚本</span>' : '') + '</dd>' +
+            (row.error ? '<dt>错误</dt><dd style="color:#c02b20;">' + App.escapeHtml(row.error) + '</dd>' : '') +
+            '<dt>QoS</dt><dd>' + (row.qos == null ? '-' : row.qos) + '</dd>' +
+            '</dl>' +
+            '<div class="label">原始报文</div>' +
+            '<pre class="json">' + App.escapeHtml(payload) + '</pre>';
+        await App.dialog({title: '消息详情 #' + row.id, body: body, okText: '关闭', cancelText: null, wide: true});
+    }
+
+    /** 重发 */
+    async function resend(id) {
+        const ok = await App.confirm('原样重新投递这条消息？\n在线客户端会立即收到，离线时进入队列等待补投。', {okText: '重发'});
+        if (!ok) return;
+        const res = await App.api('{{url("message/resend")}}', {id: id});
+        App.toast(res.msg || (res.state ? '已重发' : '重发失败'), res.state ? '' : 'err');
+        if (res.state) load();
+    }
+
+    /** 删除 */
+    async function remove(id) {
+        const ok = await App.confirm('删除这条记录？删除后不再补投。', {okText: '删除', danger: true});
+        if (!ok) return;
+        const res = await App.api('{{url("message/remove")}}', {id: id});
+        App.toast(res.msg || (res.state ? '已删除' : '删除失败'), res.state ? '' : 'err');
+        if (res.state) load();
+    }
+
+    /* ---------- 事件 ---------- */
+
+    rowsEl.addEventListener('click', function (e) {
+        const btn = e.target.closest('button[data-act]');
+        if (!btn) return;
+        const tr = btn.closest('tr');
+        const id = tr && tr.getAttribute('data-id');
+        if (!id) return;
+        const act = btn.getAttribute('data-act');
+        if (act === 'detail') showDetail(id);
+        else if (act === 'resend') resend(id);
+        else if (act === 'remove') remove(id);
+    });
+
+    function applyFilters() {
+        state.key = keySelect.value;
+        state.status = document.getElementById('f-status').value;
+        state.keyword = document.getElementById('f-keyword').value.trim();
+        state.page = 1;
+        load();
+    }
+
+    document.getElementById('btn-search').addEventListener('click', applyFilters);
+
+    document.getElementById('btn-reset').addEventListener('click', function () {
+        keySelect.value = '';
+        document.getElementById('f-status').value = '';
+        document.getElementById('f-keyword').value = '';
+        applyFilters();
+    });
+
+    document.getElementById('f-keyword').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); applyFilters(); }
+    });
+
+    document.getElementById('f-key').addEventListener('change', applyFilters);
+    document.getElementById('f-status').addEventListener('change', applyFilters);
+
+    document.getElementById('btn-refresh').addEventListener('click', load);
+
+    document.getElementById('btn-export').addEventListener('click', function () {
+        const params = new URLSearchParams();
+        if (state.key) params.set('key', state.key);
+        if (state.status !== '') params.set('status', state.status);
+        if (state.keyword) params.set('keyword', state.keyword);
+        App.toast('开始导出，最多 5000 条');
+        window.location.href = '{{url("message/export")}}' + (params.toString() ? '?' + params.toString() : '');
+    });
+
+    document.getElementById('prev').addEventListener('click', function () {
+        if (state.page > 1) { state.page--; load(); }
+    });
+
+    document.getElementById('next').addEventListener('click', function () {
+        const pages = Math.max(1, Math.ceil(total / state.size));
+        if (state.page < pages) { state.page++; load(); }
+    });
+
+    load();
+    setInterval(function () {
+        if (document.hidden) return;
+        if (document.querySelector('.mask')) return;
+        if (state.page !== 1) return;
+        load();
+    }, 15000);
+})();
+</script>
+{{/block}}

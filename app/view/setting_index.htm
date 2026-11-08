@@ -1,0 +1,576 @@
+{{extend './layout.htm'}}
+
+{{block 'main'}}
+<div class="page-hd">
+    <div>
+        <h1>设置</h1>
+        <div class="sub">服务、消息台账、推送 key 与日志</div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="tabs" id="tabs">
+        <button class="tab is-active" type="button" data-tab="status">系统信息</button>
+        <button class="tab" type="button" data-tab="storage">消息与存储</button>
+        <button class="tab" type="button" data-tab="panel">面板设置</button>
+        <button class="tab" type="button" data-tab="server">服务设置</button>
+        <button class="tab" type="button" data-tab="keys">PushKey</button>
+        <button class="tab" type="button" data-tab="account">账户密码</button>
+        <button class="tab" type="button" data-tab="logs">系统日志</button>
+    </div>
+
+    <!-- 系统信息 -->
+    <div class="panel is-active" data-panel="status">
+        <div class="stats" style="margin-bottom: 18px;">
+            <div class="stat"><div class="k">消息总数</div><div class="v" data-field="message_count">-</div></div>
+            <div class="stat"><div class="k">已送达</div><div class="v ok" data-field="delivered_count">-</div></div>
+            <div class="stat"><div class="k">待送达</div><div class="v warn" data-field="offline_count">-</div></div>
+            <div class="stat"><div class="k">今日送达率</div><div class="v" data-field="today_rate">-</div></div>
+        </div>
+
+        <div class="row" style="align-items: flex-start;">
+            <div style="flex: 1 1 300px;">
+                <div class="label">运行环境</div>
+                <dl class="kv">
+                    <dt>操作系统</dt><dd data-field="platform">-</dd>
+                    <dt>Node 版本</dt><dd data-field="node">-</dd>
+                    <dt>内存占用</dt><dd data-field="memory">-</dd>
+                    <dt>面板端口</dt><dd data-field="panel_port">-</dd>
+                    <dt>面板运行</dt><dd data-field="panel_uptime">-</dd>
+                </dl>
+            </div>
+            <div style="flex: 1 1 300px;">
+                <div class="label">消息服务</div>
+                <dl class="kv">
+                    <dt>服务状态</dt><dd data-field="pushme_status_text">-</dd>
+                    <dt>服务端口</dt><dd data-field="server_port">-</dd>
+                    <dt>在线客户端</dt><dd data-field="client_count">-</dd>
+                    <dt>总连接数</dt><dd data-field="connection_count">-</dd>
+                    <dt>服务运行</dt><dd data-field="pushme_uptime">-</dd>
+                </dl>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="row tight" style="align-items: center;">
+            <label class="switch">
+                <input type="checkbox" id="service-switch">
+                <span class="track"></span>
+                <span>消息服务</span>
+            </label>
+            <button class="btn btn-sm" type="button" id="server-restart">重启服务</button>
+            <button class="btn btn-sm" type="button" id="panel-restart">重启面板</button>
+        </div>
+    </div>
+
+    <!-- 消息与存储 -->
+    <div class="panel" data-panel="storage">
+        <div class="notice info">
+            消息落在本地 SQLite：保留 <strong>{{retain_days ? retain_days + ' 天' : '不限天数'}}</strong>，
+            每个 push_key 最多 <strong>{{max_per_key ? max_per_key + ' 条' : '不限条数'}}</strong>，超出后淘汰最旧的。
+            送达只认客户端 PUBACK，没有回执的一律显示"已下发"。
+        </div>
+        <div class="stats" style="margin-bottom: 16px;">
+            <div class="stat"><div class="k">未送达</div><div class="v warn" data-storage="queued">-</div></div>
+            <div class="stat"><div class="k">已下发未确认</div><div class="v" data-storage="sent">-</div></div>
+            <div class="stat"><div class="k">已送达</div><div class="v ok" data-storage="delivered">-</div></div>
+            <div class="stat"><div class="k">已丢弃</div><div class="v" data-storage="dropped">-</div></div>
+        </div>
+        <div class="row tight" style="margin-bottom: 4px;">
+            <a class="btn" href="{{url('message/index')}}">打开消息台账</a>
+            <button class="btn" type="button" id="clean-delivered">清理已送达记录</button>
+            <button class="btn btn-danger" type="button" id="clean-all">清空全部消息</button>
+            <button class="btn btn-ghost" type="button" id="refresh-storage">刷新</button>
+        </div>
+
+        <div class="divider"></div>
+
+        <form data-form="messages" autocomplete="off">
+            <div class="label">保留策略</div>
+            <div class="hint" style="margin: 0 0 12px;">两个维度谁先触发谁生效；填 <strong>0</strong> 表示该维度不自动清理。</div>
+            <div class="row">
+                <div class="field">
+                    <label for="retain_days">保留天数</label>
+                    <input class="input" type="number" id="retain_days" name="retain_days" value="{{retain_days}}" min="0" max="3650">
+                    <div class="hint">超过天数的历史消息被清理（0 = 不按时间清理）</div>
+                </div>
+                <div class="field">
+                    <label for="max_per_key">每个 push_key 最多条数</label>
+                    <input class="input" type="number" id="max_per_key" name="max_per_key" value="{{max_per_key}}" min="0" max="100000">
+                    <div class="hint">超出后淘汰该 key 最旧的消息（0 = 不限条数）</div>
+                </div>
+            </div>
+            <div class="chips" id="retain-presets" style="margin-bottom: 14px;">
+                <button type="button" class="chip" data-days="1" data-max="200">最省 · 1 天 / 200 条</button>
+                <button type="button" class="chip" data-days="7" data-max="500">默认 · 7 天 / 500 条</button>
+                <button type="button" class="chip" data-days="30" data-max="2000">较久 · 30 天 / 2000 条</button>
+                <button type="button" class="chip" data-days="0" data-max="0">不限 · 不自动清理</button>
+            </div>
+            <div class="form-actions">
+                <button class="btn btn-primary" type="submit">保存保留策略</button>
+                <span class="hint" style="margin: 0; align-self: center;">保存后立即清理一次，无需重启</span>
+            </div>
+        </form>
+    </div>
+
+    <!-- 面板设置 -->
+    <div class="panel" data-panel="panel">
+        <form data-form="panel" autocomplete="off">
+            <div class="notice">证书目录 <code class="inline">./config/certs/</code>，私钥 <code class="inline">private.key</code>，证书 <code class="inline">cert.crt</code>。若已用 Nginx 反代并配置证书，这里不要再开。</div>
+            <div class="field">
+                <label for="panel_port">面板端口</label>
+                <input class="input" type="number" id="panel_port" name="panel_port" value="{{panel_port}}" min="1" max="65535">
+            </div>
+            <div class="field">
+                <label>面板证书</label>
+                <input type="hidden" name="panel_tls" id="panel_tls" value="{{panel_tls}}">
+                <div class="chips" data-radio="panel_tls">
+                    <button class="chip {{panel_tls == 'none' ? '' : 'is-on'}}" type="button" data-value="none">无证书（走 HTTP 或反代）</button>
+                    <button class="chip {{panel_tls == 'tls' ? 'is-on' : ''}}" type="button" data-value="tls">共用服务证书</button>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button class="btn btn-primary" type="submit">保存</button>
+                <span class="hint" style="margin: 0; align-self: center;">修改端口或证书后面板会自动重启</span>
+            </div>
+        </form>
+    </div>
+
+    <!-- 服务设置 -->
+    <div class="panel" data-panel="server">
+        <form data-form="server" autocomplete="off">
+            <div class="field">
+                <label for="server_port">服务端口</label>
+                <input class="input" type="number" id="server_port" name="server_port" value="{{server_port}}" min="1" max="65535">
+                <div class="hint">MQTT / WebSocket / HTTP 三协议复用同一端口，客户端只需填这一个</div>
+            </div>
+            <div class="field">
+                <label>服务证书</label>
+                <input type="hidden" name="tls" id="tls" value="{{tls}}">
+                <div class="chips" data-radio="tls">
+                    <button class="chip {{tls == 'none' ? 'is-on' : ''}}" type="button" data-value="none">无证书</button>
+                    <button class="chip {{tls == 'public' ? 'is-on' : ''}}" type="button" data-value="public">公共证书</button>
+                    <button class="chip {{tls == 'self' ? 'is-on' : ''}}" type="button" data-value="self">自签名证书</button>
+                </div>
+            </div>
+            <div class="field">
+                <label>证书内容</label>
+                <textarea class="textarea" id="cert-content" rows="6" readonly placeholder="点击下方按钮生成，或手动放到 config/certs/"></textarea>
+                <div class="hint">生成后需重启服务；自签名证书需要在手机上单独导入信任</div>
+            </div>
+            <div class="form-actions">
+                <button class="btn btn-primary" type="submit">保存</button>
+                <button class="btn" type="button" id="tls-create">生成自签名证书</button>
+                <button class="btn btn-ghost" type="button" id="tls-refresh">读取当前证书</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- PushKey -->
+    <div class="panel" data-panel="keys">
+        <form data-form="push_key" autocomplete="off">
+            <div class="label">推送 key（客户端订阅用它，等同于凭证，请用 32 位以上随机串）</div>
+            <div id="key-list"></div>
+            <button class="btn btn-sm" type="button" id="key-add" style="margin-top: 10px;">+ 添加 push_key</button>
+            <div class="divider"></div>
+            <div class="form-actions">
+                <button class="btn btn-primary" type="submit">保存</button>
+                <button class="btn btn-ghost" type="button" id="key-random">生成随机 key</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- 账户密码 -->
+    <div class="panel" data-panel="account">
+        <form data-form="user" autocomplete="off">
+            <div class="field">
+                <label for="acc_user">账号</label>
+                <input class="input" type="text" id="acc_user" name="user" autocomplete="username">
+            </div>
+            <div class="field">
+                <label for="acc_password">新密码</label>
+                <input class="input" type="password" id="acc_password" name="password" autocomplete="new-password">
+            </div>
+            <div class="field">
+                <label for="acc_password2">确认密码</label>
+                <input class="input" type="password" id="acc_password2" name="password2" autocomplete="new-password">
+            </div>
+            <div class="form-actions"><button class="btn btn-primary" type="submit">保存</button></div>
+        </form>
+    </div>
+
+    <!-- 日志 -->
+    <div class="panel" style="padding: 0;" data-panel="logs">
+        <div class="console-toolbar">
+            <button class="btn btn-sm" type="button" id="log-toggle">暂停</button>
+            <button class="btn btn-sm" type="button" id="log-clear">清空</button>
+            <select class="select" id="log-level" style="width: 150px;">
+                <option value="">全部级别</option>
+                {{each log_levels lv}}
+                <option value="{{lv}}">{{lv}}</option>
+                {{/each}}
+            </select>
+            <span class="hint" style="margin: 0 0 0 auto;">仅存内存，重启清空 · <span id="log-count">0</span> 条</span>
+        </div>
+        <div class="console" id="console"></div>
+    </div>
+</div>
+{{/block}}
+
+{{block 'js'}}
+<script>
+(function () {
+    const {api, toast, confirm: confirmBox, prompt: promptBox, fmtDuration, escapeHtml, $, $$} = App;
+
+    const pushKeys = {{@ push_keys_json}} || [];
+    const MAX_LOG = 500;
+
+    /* ---------------- 标签页 ---------------- */
+    let currentTab = 'status';
+
+    function activateTab(name) {
+        const tab = document.querySelector('#tabs .tab[data-tab="' + name + '"]');
+        if (!tab) return;
+        currentTab = name;
+        $$('#tabs .tab').forEach(t => t.classList.toggle('is-active', t === tab));
+        $$('[data-panel]').forEach(p => p.classList.toggle('is-active', p.dataset.panel === currentTab));
+        if (currentTab === 'status') startStatus();
+        else stopStatus();
+        if (currentTab === 'storage') loadStorage();
+        if (currentTab === 'logs') connectLog();
+        else disconnectLog();
+        if (currentTab === 'server') loadCert();
+    }
+
+    $$('#tabs .tab').forEach(function (tab) {
+        tab.addEventListener('click', function () {
+            activateTab(tab.dataset.tab);
+            if (history.replaceState) history.replaceState(null, '', '#' + tab.dataset.tab);
+        });
+    });
+
+    /* ---------------- 系统状态 ---------------- */
+    let statusTimer = null;
+
+    function statusText(value) {
+        return String(value) === 'start' ? '运行中' : '已停止';
+    }
+
+    async function loadStatus() {
+        const res = await api('{{url("server/status")}}');
+        if (!res.state) return;
+        const d = res.data || {};
+        const map = {
+            message_count: d.message_count,
+            delivered_count: d.delivered_count,
+            offline_count: d.offline_count,
+            client_count: d.client_count,
+            connection_count: d.connection_count,
+            panel_port: d.panel_port,
+            server_port: d.server_port,
+            node: d.node,
+            platform: d.platform
+        };
+        Object.keys(map).forEach(function (key) {
+            const el = $('[data-field="' + key + '"]');
+            if (el) el.textContent = map[key] === undefined || map[key] === null ? '-' : map[key];
+        });
+        const mem = $('[data-field="memory"]');
+        if (mem) mem.textContent = d.memory ? (d.memory / 1024 / 1024).toFixed(1) + ' MB' : '-';
+        const pu = $('[data-field="panel_uptime"]');
+        if (pu) pu.textContent = fmtDuration(d.panel_uptime);
+        const su = $('[data-field="pushme_uptime"]');
+        if (su) su.textContent = fmtDuration(d.pushme_uptime);
+        const st = $('[data-field="pushme_status_text"]');
+        if (st) st.textContent = statusText(d.pushme_status);
+        const rate = $('[data-field="today_rate"]');
+        if (rate) {
+            const total = Number(d.today_total) || 0;
+            const done = Number(d.today_delivered) || 0;
+            rate.innerHTML = total ? (done + '/' + total + ' <small>' + Math.round(done / total * 100) + '%</small>') : '0';
+        }
+        const sw = $('#service-switch');
+        if (sw) sw.checked = String(d.pushme_status) === 'start';
+    }
+
+    function startStatus() {
+        if (statusTimer) return;
+        loadStatus();
+        statusTimer = setInterval(loadStatus, 2000);
+    }
+
+    function stopStatus() {
+        if (statusTimer) clearInterval(statusTimer);
+        statusTimer = null;
+    }
+
+    $('#service-switch').addEventListener('change', async function () {
+        const on = this.checked;
+        if (!on && !(await confirmBox('关闭后客户端立即断开，未送达的消息会留在队列里，重新开启后补投。确定关闭？'))) {
+            this.checked = true;
+            return;
+        }
+        const res = await api(on ? '{{url("server/start")}}' : '{{url("server/stop")}}');
+        toast(res.msg || (res.state ? '已切换' : '操作失败'), res.state ? '' : 'err');
+        loadStatus();
+    });
+
+    $('#server-restart').addEventListener('click', async function () {
+        if (!(await confirmBox('重启消息服务？客户端会在几秒内重连。'))) return;
+        const res = await api('{{url("server/restart")}}');
+        toast(res.msg || '已重启', res.state ? '' : 'err');
+        loadStatus();
+    });
+
+    $('#panel-restart').addEventListener('click', async function () {
+        if (!(await confirmBox('重启面板？页面会自动刷新。'))) return;
+        const res = await api('{{url("server/panel_restart")}}');
+        toast(res.msg || '已重启', res.state ? '' : 'err');
+        setTimeout(function () { location.reload(); }, 2500);
+    });
+
+    /* ---------------- 存储统计 ---------------- */
+    async function loadStorage() {
+        const res = await api('{{url("message/stats")}}');
+        if (!res.state) return;
+        const d = res.data || {};
+        $$('[data-storage]').forEach(function (el) {
+            el.textContent = d[el.dataset.storage] === undefined ? '-' : d[el.dataset.storage];
+        });
+    }
+
+    $('#refresh-storage').addEventListener('click', loadStorage);
+
+    /* ---------------- 保留策略预设 ---------------- */
+    $$('#retain-presets .chip').forEach(function (chip) {
+        chip.addEventListener('click', function () {
+            $('#retain_days').value = chip.dataset.days;
+            $('#max_per_key').value = chip.dataset.max;
+            $$('#retain-presets .chip').forEach(c => c.classList.toggle('is-on', c === chip));
+        });
+    });
+
+    $('#clean-delivered').addEventListener('click', async function () {
+        if (!(await confirmBox('清理所有已送达的历史记录？台账将不再显示这些消息。'))) return;
+        const res = await api('{{url("message/clear")}}', {status: 2});
+        toast(res.msg || '已清理', res.state ? '' : 'err');
+        loadStorage();
+    });
+
+    $('#clean-all').addEventListener('click', async function () {
+        if (!(await confirmBox('清空全部消息记录？未送达的队列也会被删除，此操作不可恢复。', {danger: true}))) return;
+        const res = await api('{{url("message/clear")}}');
+        toast(res.msg || '已清空', res.state ? '' : 'err');
+        loadStorage();
+    });
+
+    /* ---------------- 表单通用提交 ---------------- */
+    function collect(form) {
+        const data = {};
+        new FormData(form).forEach(function (value, key) {
+            if (data[key] === undefined) data[key] = value;
+        });
+        return data;
+    }
+
+    $$('form[data-form]').forEach(function (form) {
+        form.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            const type = form.dataset.form;
+            const data = collect(form);
+            data.form = type;
+
+            if (type === 'push_key') {
+                const keys = [];
+                $$('#key-list .push-key-item').forEach(function (row) {
+                    const key = row.querySelector('[data-k="key"]').value.trim();
+                    if (!key) return;
+                    keys.push({
+                        key: key,
+                        temp_key: row.querySelector('[data-k="temp_key"]').value.trim(),
+                        note: row.querySelector('[data-k="note"]').value.trim()
+                    });
+                });
+                if (!keys.length) return toast('至少需要保留一个 push_key', 'err');
+                data.push_keys_json = JSON.stringify(keys);
+            }
+
+            if (type === 'user') {
+                if (!data.user || !data.password) return toast('账号密码不能为空', 'err');
+                if (data.password !== data.password2) return toast('两次输入密码不一致', 'err');
+                delete data.password2;
+            }
+
+            const btn = form.querySelector('button[type="submit"]');
+            btn && (btn.disabled = true);
+            try {
+                const res = await api('', data);
+                if (!res.state) return toast(res.msg || '保存失败', 'err');
+                toast(res.msg || '已保存');
+                if (type === 'panel' && res.data && res.data.panel_port) {
+                    const url = new URL(location.href);
+                    url.port = res.data.panel_port;
+                    url.protocol = res.data.panel_tls === 'none' ? 'http:' : 'https:';
+                    setTimeout(function () { location.replace(url.toString()); }, 2600);
+                }
+                if (type === 'user') form.querySelector('[name="password"]').value = '';
+            } catch (err) {
+                toast('请求失败：' + err.message, 'err');
+            } finally {
+                btn && (btn.disabled = false);
+            }
+        });
+    });
+
+    /* ---------------- 单选胶囊 ---------------- */
+    $$('[data-radio]').forEach(function (group) {
+        const target = document.getElementById(group.dataset.radio);
+        group.querySelectorAll('.chip').forEach(function (chip) {
+            chip.addEventListener('click', function () {
+                group.querySelectorAll('.chip').forEach(c => c.classList.toggle('is-on', c === chip));
+                if (target) target.value = chip.dataset.value;
+            });
+        });
+    });
+
+    /* ---------------- PushKey 列表 ---------------- */
+    function keyRow(item) {
+        const row = document.createElement('div');
+        row.className = 'push-key-item';
+        row.innerHTML =
+            '<input class="input" data-k="key" placeholder="push_key（必填）">' +
+            '<input class="input w-temp" data-k="temp_key" placeholder="临时 key（可选）">' +
+            '<input class="input w-note" data-k="note" placeholder="备注（可选）">' +
+            '<button class="btn btn-sm btn-icon btn-danger" type="button" title="删除">×</button>';
+        row.querySelector('[data-k="key"]').value = item.key || '';
+        row.querySelector('[data-k="temp_key"]').value = item.temp_key || '';
+        row.querySelector('[data-k="note"]').value = item.note || '';
+        row.querySelector('button').addEventListener('click', function () { row.remove(); });
+        return row;
+    }
+
+    function renderKeys() {
+        const list = $('#key-list');
+        list.innerHTML = '';
+        const items = pushKeys.length ? pushKeys : [{key: '', temp_key: '', note: ''}];
+        items.forEach(item => list.appendChild(keyRow(item)));
+    }
+
+    $('#key-add').addEventListener('click', function () {
+        $('#key-list').appendChild(keyRow({}));
+    });
+
+    $('#key-random').addEventListener('click', function () {
+        const bytes = new Uint8Array(16);
+        (window.crypto || window.msCrypto).getRandomValues(bytes);
+        const key = Array.from(bytes).map(b => ('0' + b.toString(16)).slice(-2)).join('');
+        const rows = $$('#key-list .push-key-item');
+        const target = rows[rows.length - 1];
+        const input = target ? target.querySelector('[data-k="key"]') : null;
+        if (input) input.value = key;
+        toast('已生成 32 位随机 key');
+    });
+
+    renderKeys();
+
+    /* ---------------- 证书 ---------------- */
+    async function loadCert() {
+        const res = await api('{{url("server/getCert")}}');
+        const box = $('#cert-content');
+        box.value = res.state ? (res.msg || '') : '未找到证书';
+    }
+
+    $('#tls-refresh').addEventListener('click', loadCert);
+
+    $('#tls-create').addEventListener('click', async function () {
+        if (!(await confirmBox('将覆盖已有证书，生成后服务会自动重启。继续？'))) return;
+        const domains = await promptBox({
+            title: '证书域名（每行一个）',
+            value: '{{domains}}'.replace(/\\n/g, '\n'),
+            multiline: true
+        });
+        if (domains === null) return;
+        const res = await api('{{url("server/tls_create")}}', {domains});
+        toast(res.msg || (res.state ? '已生成' : '生成失败'), res.state ? '' : 'err');
+        if (res.state) loadCert();
+    });
+
+    /* ---------------- 日志 ---------------- */
+    let es = null;
+    let paused = false;
+    let levelFilter = '';
+    let logCount = 0;
+
+    function appendLog(line) {
+        if (levelFilter && line.level !== levelFilter) return;
+        const box = $('#console');
+        const div = document.createElement('div');
+        div.className = 'log-line';
+        const time = new Date(line.time);
+        const pad = n => (n < 10 ? '0' + n : '' + n);
+        div.innerHTML = '<span class="t">' + pad(time.getHours()) + ':' + pad(time.getMinutes()) + ':' + pad(time.getSeconds()) + '</span>' +
+            '<span class="lv lv-' + escapeHtml(line.level) + '">' + escapeHtml(line.level) + '</span>' +
+            '<span class="m"></span>';
+        div.querySelector('.m').textContent = line.msg;
+        box.appendChild(div);
+        logCount++;
+        if (box.children.length > MAX_LOG) box.removeChild(box.firstChild);
+        box.scrollTop = box.scrollHeight;
+        $('#log-count').textContent = logCount;
+    }
+
+    function connectLog() {
+        if (es) return;
+        const box = $('#console');
+        box.innerHTML = '';
+        logCount = 0;
+        $('#log-count').textContent = '0';
+        es = new EventSource('{{url("log/stream")}}');
+        es.onmessage = function (e) {
+            if (paused) return;
+            try { appendLog(JSON.parse(e.data)); } catch (err) { /* ignore */ }
+        };
+        es.onerror = function () {
+            if (es) { es.close(); es = null; }
+            if (currentTab === 'logs') setTimeout(connectLog, 3000);
+        };
+    }
+
+    function disconnectLog() {
+        if (es) { es.close(); es = null; }
+    }
+
+    $('#log-toggle').addEventListener('click', function () {
+        paused = !paused;
+        this.textContent = paused ? '恢复' : '暂停';
+        this.classList.toggle('btn-ghost', paused);
+    });
+
+    $('#log-clear').addEventListener('click', function () {
+        $('#console').innerHTML = '';
+        logCount = 0;
+        $('#log-count').textContent = '0';
+    });
+
+    $('#log-level').addEventListener('change', function () {
+        levelFilter = this.value;
+        $('#console').innerHTML = '';
+        logCount = 0;
+        $('#log-count').textContent = '0';
+        fetch('{{url("log/history")}}?count=500', {credentials: 'same-origin'})
+            .then(r => r.json())
+            .then(res => { if (res.state && res.data) res.data.forEach(appendLog); })
+            .catch(function () { /* ignore */ });
+    });
+
+    startStatus();
+
+    /* 支持 #storage 之类深链，刷新后停留在同一个标签 */
+    if (location.hash) {
+        const name = location.hash.replace('#', '');
+        if (document.querySelector('#tabs .tab[data-tab="' + name + '"]')) activateTab(name);
+    }
+})();
+</script>
+{{/block}}
