@@ -102,7 +102,8 @@ def main():
 
     # 1) 枚举本地树
     entries = []
-    for line in git("ls-tree", "-r", "HEAD").decode().splitlines():
+    # core.quotepath=false：否则中文文件名会被加引号并转义成 \345\217\221，远端就建成带引号的路径
+    for line in git("-c", "core.quotepath=false", "ls-tree", "-r", "HEAD").decode().splitlines():
         meta, path = line.split("\t", 1)
         mode, typ, sha = meta.split()
         if typ != "blob":
